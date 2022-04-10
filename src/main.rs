@@ -1,7 +1,7 @@
 use bevy::{prelude::*, input::mouse::MouseMotion, render::render_resource::{AddressMode, FilterMode, Extent3d}, gltf::{Gltf, self}};
 use bevy_asset_loader::{AssetLoader, AssetCollection};
 use iyes_loopless::prelude::*;
-use heron::prelude::*;
+use heron::{prelude::*, PendingConvexCollision};
 use leafwing_input_manager::{Actionlike, plugin::InputManagerPlugin, InputManagerBundle, prelude::{InputMap, ActionState}};
 
 
@@ -51,6 +51,8 @@ fn main() {
                 .with_system(process_actions)
                 .with_system(cursor_grab_system)
         )
+
+        .add_system(check_scene_objects)
 
         .run();
 }
@@ -192,31 +194,6 @@ fn setup (
     mut gltfs: ResMut<Assets<Gltf>>,
     mut textures: ResMut<Assets<Image>>,
 ) {     
-    // Floor
-    /*
-    commands
-        .spawn_bundle(PbrBundle {
-            mesh: meshes.add(Mesh::from(shape::Box::new(40., 1., 40.))),
-            material: materials.add(StandardMaterial {
-                base_color_texture: Some(texture_handles.grass.clone()),
-                perceptual_roughness: 1.0,
-                metallic: 0.,
-                reflectance: 0.,
-                ..Default::default()
-            }),
-            ..Default::default()
-        })
-        .insert_bundle((Transform::identity(), GlobalTransform::identity()))
-        .insert(RigidBody::Static)
-        .insert(CollisionShape::Cuboid {
-            half_extends: Vec3::new(20., 0.5, 20.),
-            border_radius: None,
-        });
-     */
-    
-    
-
-
     // Player
     commands
         .spawn_bundle(InputManagerBundle::<Action> {
@@ -243,7 +220,7 @@ fn setup (
         })
         */
         .insert(Transform {
-            translation: Vec3::new(0., 15., 0.),
+            translation: Vec3::new(0., 1., 0.),
             ..Default::default()
         })
         .insert(GlobalTransform::identity())
@@ -287,5 +264,9 @@ fn check_scene_objects (
     mut commands: Commands,
     entities: Query<(Entity, &Name), Added<Name>>
 ) {
-
+    for (entity, name) in entities.iter() {
+        if name.as_str().contains("Collidable") {
+            commands.entity(entity).insert(PendingConvexCollision::default());
+        }
+    }
 }
