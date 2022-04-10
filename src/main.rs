@@ -1,4 +1,5 @@
-use bevy::{prelude::*, input::mouse::MouseMotion, render::render_resource::{AddressMode, FilterMode, Extent3d}};
+use bevy::{prelude::*, input::mouse::MouseMotion, render::render_resource::{AddressMode, FilterMode, Extent3d}, gltf::{Gltf, self}};
+use bevy_asset_loader::{AssetLoader, AssetCollection};
 use iyes_loopless::prelude::*;
 use heron::prelude::*;
 use leafwing_input_manager::{Actionlike, plugin::InputManagerPlugin, InputManagerBundle, prelude::{InputMap, ActionState}};
@@ -8,28 +9,48 @@ const SPEED: f32 = 12.;
 const ACCELERATION: f32 = 2.;
 
 fn main() {
-    App::new()
-        .insert_resource(Msaa { samples: 4 })
-        .insert_resource(Gravity::from(Vec3::new(0., -9.81, 0.)))
+    let mut app = App::new();
+    AssetLoader::new(GameState::Loading)
+        .continue_to_state(GameState::Setup)
+        .with_collection::<TextureAssets>()
+        .with_collection::<SceneAssets>()
+        .build(&mut app);
 
-        .add_state(GameState::Setup)
+    app
+        .add_state(GameState::Loading)
+    
+        .insert_resource(Msaa { samples: 4 })
+        .insert_resource(Gravity::from(Vec3::new(0., -9.81, 0.)))        
 
         .add_plugins(DefaultPlugins)
         .add_plugin(PhysicsPlugin::default())
         .add_plugin(InputManagerPlugin::<Action, GameState>::run_in_state(GameState::Playing))
         
-        .add_stage_after(
-            CoreStage::PreUpdate,
-            "TransitionStage",
-            StateTransitionStage::new(GameState::Setup)
+        //.add_stage_after(
+        //    CoreStage::PreUpdate,
+        //    "TransitionStage",
+        //    StateTransitionStage::new(GameState::Setup)
+        //)
+
+
+         // TODO: Change this once asset_loader supports loopless.
+         .add_system_set(
+             SystemSet::on_update(GameState::Loading)
+                 .with_system(test)
+         )
+
+        // TODO: Change this once asset_loader supports loopless.
+        .add_system_set(
+            SystemSet::on_enter(GameState::Setup)
+                .with_system(setup)
         )
 
-        .add_startup_system(setup.system())
-
-        .add_system(load_textures.run_in_state(GameState::Setup))
-
-        .add_system(process_actions.run_in_state(GameState::Playing))
-        .add_system(cursor_grab_system.run_in_state(GameState::Playing))
+        // TODO: Change this once asset_loader supports loopless.
+        .add_system_set(
+            SystemSet::on_update(GameState::Playing)
+                .with_system(process_actions)
+                .with_system(cursor_grab_system)
+        )
 
         .run();
 }
@@ -52,8 +73,21 @@ pub enum Action {
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum GameState {
+    Loading,
     Setup,
     Playing,
+}
+
+#[derive(AssetCollection)]
+struct SceneAssets {
+  #[asset(path = "room.glb#Scene0")]
+  room: Handle<Scene>
+}
+
+#[derive(AssetCollection)]
+struct TextureAssets {
+  #[asset(path = "textures/grass.png")]
+  grass: Handle<Image>,
 }
 
 // Components
@@ -62,6 +96,12 @@ pub struct Player;
 
 
 // Systems
+fn test (
+    
+) {
+    println!("Loading!");
+}
+
 fn process_actions(
     mut windows: ResMut<Windows>,
     time: Res<Time>,
@@ -143,12 +183,38 @@ fn cursor_grab_system(
 fn setup (
     mut commands: Commands,
 
+    mut game_state: ResMut<State<GameState>>,
     assets: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-) {
-
-
+    scene_handles: Res<SceneAssets>,
+    texture_handles: Res<TextureAssets>,
+    mut gltfs: ResMut<Assets<Gltf>>,
+    mut textures: ResMut<Assets<Image>>,
+) {     
+    // Floor
+    /*
+    commands
+        .spawn_bundle(PbrBundle {
+            mesh: meshes.add(Mesh::from(shape::Box::new(40., 1., 40.))),
+            material: materials.add(StandardMaterial {
+                base_color_texture: Some(texture_handles.grass.clone()),
+                perceptual_roughness: 1.0,
+                metallic: 0.,
+                reflectance: 0.,
+                ..Default::default()
+            }),
+            ..Default::default()
+        })
+        .insert_bundle((Transform::identity(), GlobalTransform::identity()))
+        .insert(RigidBody::Static)
+        .insert(CollisionShape::Cuboid {
+            half_extends: Vec3::new(20., 0.5, 20.),
+            border_radius: None,
+        });
+     */
+    
+    
 
 
     // Player
@@ -198,76 +264,28 @@ fn setup (
         });
 
 
-        let room = assets.load("room.glb#Scene0");
+        //let mut room = gltfs.get(gltf_handles.room.clone()).unwrap();
+
+        //for obj in room.meshes.iter() {
+
+        //}
 
         commands
-            .spawn_scene(room);
+            .spawn_scene(scene_handles.room.clone());
         
-
-
-
-
-
     // light
     commands.spawn_bundle(PointLightBundle {
         transform: Transform::from_xyz(-4.0, 9.0, -4.0),
         ..Default::default()
     });
+
+    game_state.set(GameState::Playing);
+    //commands.insert_resource(NextState(GameState::Playing));
 }
 
-// TODO: how this could/should work:
-// -Loop and make sure that all required textures are loaded
-// -Proceed to setup stage after textures are loaded, spawn objects
-fn load_textures (
+fn check_scene_objects (
     mut commands: Commands,
-
-    mut game_state: ResMut<State<GameState>>,
-    asset_server: Res<AssetServer>,
-    mut textures: ResMut<Assets<Image>>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    entities: Query<(Entity, &Name), Added<Name>>
 ) {
-    let grass_handle: Handle<Image> = asset_server.load("textures/grass.png");
 
-
-    if let Some(tex) = textures.get(grass_handle) {
-
-        let mut grass_texture = tex.clone();
-
-
-        //grass_texture.texture_descriptor.size = Extent3d { width: 64, height: 64, depth_or_array_layers: 2};
-
-        grass_texture.sampler_descriptor.address_mode_u = AddressMode::Repeat;
-        grass_texture.sampler_descriptor.address_mode_v = AddressMode::Repeat;
-        grass_texture.sampler_descriptor.address_mode_w = AddressMode::Repeat;
-        grass_texture.sampler_descriptor.mag_filter = FilterMode::Nearest;
-        grass_texture.sampler_descriptor.min_filter = FilterMode::Nearest;
-
-        println!("{:?}", grass_texture.texture_descriptor.size);
-
-        let handle = textures.add(grass_texture);
-        
-        // Floor
-        commands
-            .spawn_bundle(PbrBundle {
-                mesh: meshes.add(Mesh::from(shape::Box::new(40., 1., 40.))),
-                material: materials.add(StandardMaterial {
-                    base_color_texture: Some(handle),
-                    perceptual_roughness: 1.0,
-                    metallic: 0.,
-                    reflectance: 0.,
-                    ..Default::default()
-                }),
-                ..Default::default()
-            })
-            .insert_bundle((Transform::identity(), GlobalTransform::identity()))
-            .insert(RigidBody::Static)
-            .insert(CollisionShape::Cuboid {
-                half_extends: Vec3::new(20., 0.5, 20.),
-                border_radius: None,
-            });
-
-        commands.insert_resource(NextState(GameState::Playing));
-        game_state.set(GameState::Playing);
-    }
 }
