@@ -13,6 +13,9 @@ use player::*;
 pub mod setup;
 use setup::*;
 
+pub mod map;
+use map::*;
+
 
 fn main() {
     let mut app = App::new();
@@ -32,6 +35,8 @@ fn main() {
         .add_plugin(PhysicsPlugin::default())
         .add_plugin(InputManagerPlugin::<Action, GameState>::run_in_state(GameState::Playing))
         
+        .add_plugin(MapPlugin)
+
         //.add_stage_after(
         //    CoreStage::PreUpdate,
         //    "TransitionStage",
@@ -42,6 +47,7 @@ fn main() {
         .add_system_set(
             SystemSet::on_enter(GameState::Setup)
                 .with_system(setup)
+                .with_system(generate_map)
         )
 
         // TODO: Change this once asset_loader supports loopless.
@@ -52,6 +58,7 @@ fn main() {
         )
 
         .add_system(check_scene_objects)
+        .add_system(spawn_surfaces)
 
         .run();
 }

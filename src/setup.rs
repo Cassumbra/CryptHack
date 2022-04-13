@@ -54,15 +54,19 @@ pub fn setup (
         });
 
 
-        //let mut room = gltfs.get(gltf_handles.room.clone()).unwrap();
+    //let mut room = gltfs.get(gltf_handles.room.clone()).unwrap();
 
-        //for obj in room.meshes.iter() {
+    //for obj in room.meshes.iter() {
 
-        //}
+    //}
 
-        commands
-            .spawn_scene(scene_handles.room.clone());
+    //commands
+    //    .spawn_scene(scene_handles.room.clone());
         
+
+
+
+
     // light
     commands.spawn_bundle(PointLightBundle {
         transform: Transform::from_xyz(-4.0, 9.0, -4.0),
