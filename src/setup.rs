@@ -6,6 +6,8 @@ use crate::{actions::Action, player::Player};
 
 use super::{GameState, SceneAssets, TextureAssets};
 
+const PLAYER_HEIGHT: f32 = 0.4;
+
 // Systems
 pub fn setup (
     mut commands: Commands,
@@ -45,12 +47,16 @@ pub fn setup (
             allow_z: false,
         })
         .insert(CollisionShape::Capsule {
-            radius: 0.5,
-            half_segment: 1.0,
+            radius: 0.2,
+            half_segment: PLAYER_HEIGHT / 2.0,
         })
         // Camera
         .with_children(|c| {
-            c.spawn_bundle(PerspectiveCameraBundle::new_3d());
+            c.spawn_bundle(PerspectiveCameraBundle::new_3d())
+                .insert( Transform {
+                    translation: Vec3::new(0.0, PLAYER_HEIGHT - (PLAYER_HEIGHT / 4.0), 0.0),
+                    ..Default::default()
+                });
         });
 
 

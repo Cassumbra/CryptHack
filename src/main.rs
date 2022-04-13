@@ -58,6 +58,7 @@ fn main() {
         )
 
         .add_system(check_scene_objects)
+        .add_system(spawn_surface)
         .add_system(spawn_surfaces)
 
         .run();
