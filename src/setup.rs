@@ -57,6 +57,12 @@ pub fn setup (
                     translation: Vec3::new(0.0, PLAYER_HEIGHT - (PLAYER_HEIGHT / 4.0), 0.0),
                     ..Default::default()
                 });
+        })
+        // light
+        .with_children(|c| {
+            c.spawn_bundle(PointLightBundle {
+                ..Default::default()
+            });
         });
 
 
@@ -73,11 +79,7 @@ pub fn setup (
 
 
 
-    // light
-    commands.spawn_bundle(PointLightBundle {
-        transform: Transform::from_xyz(-4.0, 9.0, -4.0),
-        ..Default::default()
-    });
+
 
     game_state.set(GameState::Playing);
     //commands.insert_resource(NextState(GameState::Playing));

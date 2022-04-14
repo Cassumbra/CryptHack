@@ -53,14 +53,14 @@ pub fn generate_map (
     let mut rooms = Vec::<Rect3>::new();
 
     for _i in 0..=MAX_ROOMS {
-        let w = rng.gen_range(MIN_SIZE..MAX_SIZE) as f32;
-        let h = 0.0;
-        let l = rng.gen_range(MIN_SIZE..MAX_SIZE) as f32;
-        let x = rng.gen_range(1.0..(map.width - w - 1.0));
-        let y = 0.0;//map.height;
-        let z = rng.gen_range(1.0..(map.length - l - 1.0));
+        let w = rng.gen_range(MIN_SIZE..MAX_SIZE);
+        let h = 3;
+        let l = rng.gen_range(MIN_SIZE..MAX_SIZE);
+        let x = rng.gen_range(0..(map.width - w));
+        let y = 0;
+        let z = rng.gen_range(0..(map.length - l));
 
-        let room = Rect3::new(Vec3::new(x, y, z), w, h, l);
+        let room = Rect3::new(IVec3::new(x, y, z), w, h, l);
         
         let mut ok = true;
 
@@ -247,12 +247,12 @@ impl Default for TileOffsets {
 
 #[derive(Default, Copy, Clone, PartialEq)]
 pub struct Rect3 {
-    pub pos1: Vec3,
-    pub pos2: Vec3,
+    pub pos1: IVec3,
+    pub pos2: IVec3,
 }
 impl Rect3 {
-    pub fn new(pos: Vec3, width: f32, height: f32, length: f32) -> Rect3 {
-        Rect3 {pos1: pos, pos2: Vec3::new(pos.x + width, pos.y + height, pos.z + length)}
+    pub fn new(pos: IVec3, width: i32, height: i32, length: i32) -> Rect3 {
+        Rect3 {pos1: pos, pos2: IVec3::new(pos.x + width - 1, pos.y + height - 1, pos.z + length - 1)}
     }
 
     // Returns true if this overlaps with other
@@ -262,8 +262,8 @@ impl Rect3 {
         self.pos1.z <= other.pos2.z && self.pos2.z >= other.pos1.z
     }
 
-    pub fn center(&self) -> Vec3 { 
-        Vec3::new((self.pos1.x + self.pos2.x)/2.0, (self.pos1.y + self.pos2.y)/2.0, (self.pos1.z + self.pos2.z)/2.0)
+    pub fn center(&self) -> IVec3 { 
+        IVec3::new((self.pos1.x + self.pos2.x)/2, (self.pos1.y + self.pos2.y)/2, (self.pos1.z + self.pos2.z)/2)
     }
 }
 
@@ -273,9 +273,9 @@ pub struct Tile {
 }
 
 pub struct Map {
-    pub width: f32,
-    pub height: f32,
-    pub length: f32,
+    pub width: i32,
+    pub height: i32,
+    pub length: i32,
     pub tiles: Array3<EnumMap<TileType, Option<Tile>>>,
 }
 impl Default for Map {
@@ -283,11 +283,11 @@ impl Default for Map {
         Map {
             // Might need to add an "ID" type thingy once we start having more maps.
             // Not sure how we'll handle loading zones and such? Will figure it out tho prolly.
-            width: 80.0,
-            height: 1.0,
-            length: 40.0,
+            width: 80,
+            height: 10,
+            length: 40,
             tiles: Array3::<EnumMap<TileType, Option<Tile>>>::from_elem(
-                (80, 1, 40),
+                (80, 10, 40),
                 enum_map ! {
                     _ => None
                 }
@@ -306,10 +306,10 @@ impl Map {
 
         // TODO: We need to wipe things from the map if it already has stuff there. (I think??? I'm really tired ;-;)
         for ((x, y, z), tile) in area.indexed_iter_mut() {
-            // We should be checking if its actually floor level instead of assuming it is.
-            tile[TileType::Floor] = Some(floor.clone());
-
             // Is there a better way to do this?
+            if y == (rect.pos2.y - rect.pos1.y) as usize {
+                tile[TileType::Ceiling] = Some(ceiling.clone());
+            }
             if z == (rect.pos2.z - rect.pos1.z) as usize {
                 tile[TileType::North] = Some(floor.clone());
             }
@@ -317,15 +317,15 @@ impl Map {
                 tile[TileType::East] = Some(floor.clone());
             }
             // These are fine.
+            if y == 0 {
+                tile[TileType::Floor] = Some(floor.clone());
+            }
             if z == 0 {
                 tile[TileType::South] = Some(floor.clone());
             }
             if x == 0 as usize {
                 tile[TileType::West] = Some(floor.clone());
             }
-
-            // We should be checking if its actually ceiling level instead of assuming it is.
-            tile[TileType::Ceiling] = Some(ceiling.clone());
         }
     }
 }
