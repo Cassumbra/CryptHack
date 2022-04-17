@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use bevy_asset_loader::{AssetLoader, AssetCollection};
+use bevy_polyline::PolylinePlugin;
 //use iyes_loopless::prelude::*;
 use heron::prelude::*;
 use leafwing_input_manager::plugin::InputManagerPlugin;
@@ -15,7 +16,6 @@ use setup::*;
 
 pub mod map;
 use map::*;
-
 
 fn main() {
     let mut app = App::new();
@@ -34,7 +34,8 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_plugin(PhysicsPlugin::default())
         .add_plugin(InputManagerPlugin::<Action, GameState>::run_in_state(GameState::Playing))
-        
+        .add_plugin(PolylinePlugin)
+
         .add_plugin(MapPlugin)
 
         //.add_stage_after(

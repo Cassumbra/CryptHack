@@ -1,10 +1,14 @@
-use bevy::{prelude::*, render::render_resource::Texture};
-use enum_map::{EnumMap, Enum, enum_map};
+use bevy::{prelude::*, render::render_resource::{Texture, PrimitiveTopology}};
 use heron::prelude::*;
+
+use enum_map::{EnumMap, Enum, enum_map};
 use rand::Rng;
 use ndarray::{Array3, s};
+use delaunay3d::*;
 
 use super::TextureAssets;
+use delaunay3d::*;
+use bevy_polyline::{PolylineBundle, Polyline, PolylineMaterial};
 
 //Plugin
 #[derive(Default)]
@@ -21,6 +25,8 @@ impl Plugin for MapPlugin {
 
 // Systems
 pub fn generate_map (
+    mut commands: Commands,
+
     mut ev_spawn_surface: EventWriter<SpawnSurfaceEvent>,
     mut ev_spawn_surfaces: EventWriter<SpawnSurfacesEvent>,
 
@@ -28,6 +34,9 @@ pub fn generate_map (
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut map: ResMut<Map>,
     texture_handles: Res<TextureAssets>,
+
+    mut polylines: ResMut<Assets<Polyline>>,
+    mut polyline_materials: ResMut<Assets<PolylineMaterial>>,
 ) {
     // We should maybe not be creating these here. Check bevy_asset_loader to see if there is a better way.
     let plane_mesh = meshes.add(Mesh::from(shape::Plane {size: 1.0}));
@@ -40,6 +49,13 @@ pub fn generate_map (
     });
     let grass_tile = Tile {material: grass_texture.clone()};
 
+    let line_material = polyline_materials.add(PolylineMaterial {
+        width: 3.0,
+        color: Color::RED,
+        perspective: false,
+        ..Default::default()
+    });
+
     //
     //let mut map_objects: Grid<Option<Entity>> = Grid::default([map_size.width, map_size.height]);
 
@@ -48,16 +64,18 @@ pub fn generate_map (
     const MAX_ROOMS: i32 = 30;
     const MIN_SIZE: i32 = 6;
     const MAX_SIZE: i32 = 10;
-
+    const MIN_HEIGHT: i32 = 1;
+    const MAX_HEIGHT: i32 = 3;
 
     let mut rooms = Vec::<Rect3>::new();
+    
 
     for _i in 0..=MAX_ROOMS {
         let w = rng.gen_range(MIN_SIZE..MAX_SIZE);
-        let h = 3;
+        let h = rng.gen_range(MIN_HEIGHT..MAX_HEIGHT);
         let l = rng.gen_range(MIN_SIZE..MAX_SIZE);
         let x = rng.gen_range(0..(map.width - w));
-        let y = 0;
+        let y = rng.gen_range(0..(map.height - h));
         let z = rng.gen_range(0..(map.length - l));
 
         let room = Rect3::new(IVec3::new(x, y, z), w, h, l);
@@ -71,6 +89,24 @@ pub fn generate_map (
             rooms.push(room);
             map.create_rect(grass_tile.clone(), grass_tile.clone(), grass_tile.clone(), &room);
         }
+    }
+
+    let graph = Graph3D::new(rooms.iter().map(|room| room.center()).collect());
+    for tetrahedra in graph.tetrahedra {
+        println!("{:?}", tetrahedra);
+    }
+    for edge in graph.edges {
+        commands.spawn_bundle(PolylineBundle {
+            polyline: polylines.add(Polyline {
+                vertices: vec![
+                    edge.vertices[0],
+                    edge.vertices[1],
+                ],
+                ..Default::default()
+            }),
+            material: line_material.clone(),
+            ..Default::default()
+        });
     }
 
     for ((x, y, z), section) in map.tiles.indexed_iter() {
@@ -262,8 +298,8 @@ impl Rect3 {
         self.pos1.z <= other.pos2.z && self.pos2.z >= other.pos1.z
     }
 
-    pub fn center(&self) -> IVec3 { 
-        IVec3::new((self.pos1.x + self.pos2.x)/2, (self.pos1.y + self.pos2.y)/2, (self.pos1.z + self.pos2.z)/2)
+    pub fn center(&self) -> Vec3 { 
+        Vec3::new((self.pos1.x + self.pos2.x) as f32 / 2.0, (self.pos1.y + self.pos2.y) as f32 /2.0, (self.pos1.z + self.pos2.z) as f32 / 2.0)
     }
 }
 
@@ -304,8 +340,9 @@ impl Map {
                rect.pos1.z as i32..=rect.pos2.z as i32]
         );
 
-        // TODO: We need to wipe things from the map if it already has stuff there. (I think??? I'm really tired ;-;)
         for ((x, y, z), tile) in area.indexed_iter_mut() {
+            tile.clear();
+
             // Is there a better way to do this?
             if y == (rect.pos2.y - rect.pos1.y) as usize {
                 tile[TileType::Ceiling] = Some(ceiling.clone());

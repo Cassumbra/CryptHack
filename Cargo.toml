@@ -11,9 +11,13 @@ heron = { version = "2.3.0", features = ["3d", "collision-from-mesh"] }
 leafwing-input-manager = "0.2.0"
 iyes_loopless = "0.2.0"
 bevy_asset_loader = {version = "0.9.0"}
+bevy_polyline = "0.1.4"
+
 enum-map = "2.1.0"
 rand = { version = "0.8.5" }
 ndarray = "0.15.4"
+rs-graph = "0.20.1"
+delaunay3d = { version = "0.1.0", path = "../delaunay3d"}
 
 [profile.dev]
 opt-level = 1
