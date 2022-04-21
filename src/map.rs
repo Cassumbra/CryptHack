@@ -64,7 +64,7 @@ pub fn map_branching_start (
 
     map.update_tiles();
 
-    let exits = map.rand_surface_wall_points(5, 9, &room);
+    let exits = map.rand_surface_wall_points(1, 3, &room);
 
     map.rooms[0].map_empty_doorways(exits, tiles.grass.clone());
 
@@ -461,6 +461,7 @@ impl Map {
                                 }
     
                                 let current_tile = &mut self.tiles[[current.x as usize, current.y as usize, current.z as usize]];
+
                                 let previous = 
                                     if c == 0 {
                                         let vec_change = self.tile_offsets.0[*orientation].translation * -2.0;
@@ -476,10 +477,23 @@ impl Map {
                                         path[c+1]
                                     };
                                     
-                                let mut end_after = false;
+
                                 for tile in current_tile.iter() {
                                     if tile.1.is_some() {
-                                        end_after = true;
+                                        if current.z - 1 != previous.z {
+                                            current_tile[TileType::North] = None;
+                                        }
+                                        if current.x - 1 != previous.x {
+                                            current_tile[TileType::East] = None;
+                                        }
+                                        if current.z + 1 != previous.z {
+                                            current_tile[TileType::South] = None;
+                                        }
+                                        if current.x + 1 != previous.x {
+                                            current_tile[TileType::West] = None;
+                                        }
+                                        path.drain(c+1..path.len());
+                                        break 'path_loop;
                                     }
                                 }
 
@@ -488,26 +502,22 @@ impl Map {
                                 current_tile[TileType::South] = Some(floor.clone());
                                 current_tile[TileType::West] = Some(floor.clone());
 
-                                if current.z + 1 == previous.z || current.z + 1 == next.z || end_after {
+
+                                if current.z + 1 == previous.z || current.z + 1 == next.z {
                                     current_tile[TileType::North] = None;
                                 }
-                                if current.x + 1 == previous.x || current.x + 1 == next.x || end_after {
+                                if current.x + 1 == previous.x || current.x + 1 == next.x {
                                     current_tile[TileType::East] = None;
                                 }
-                                if current.z - 1 == previous.z || current.z - 1 == next.z || end_after {
+                                if current.z - 1 == previous.z || current.z - 1 == next.z {
                                     current_tile[TileType::South] = None;
                                 }
-                                if current.x - 1 == previous.x || current.x - 1 == next.x || end_after {
+                                if current.x - 1 == previous.x || current.x - 1 == next.x {
                                     current_tile[TileType::West] = None;
                                 }
-    
+                                
                                 current_tile[TileType::Floor] = Some(floor.clone());
                                 current_tile[TileType::Ceiling] = Some(floor.clone());
-
-                                if end_after {
-                                    path.drain(c+1..path.len());
-                                    break 'path_loop;
-                                }
                             }
                         }
     
