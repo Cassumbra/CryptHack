@@ -2,9 +2,9 @@ use bevy::{prelude::*, gltf::Gltf};
 use heron::{prelude::*, PendingConvexCollision};
 use leafwing_input_manager::prelude::*;
 
-use crate::{actions::Action, player::Player};
+use crate::{actions::Action, player::Player, map::{RoomType, Map}};
 
-use super::{GameState, SceneAssets, TextureAssets};
+use super::{GameState, TextureAssets};
 
 const PLAYER_HEIGHT: f32 = 0.4;
 
@@ -12,15 +12,15 @@ const PLAYER_HEIGHT: f32 = 0.4;
 pub fn setup (
     mut commands: Commands,
 
-    mut game_state: ResMut<State<GameState>>,
-    assets: Res<AssetServer>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    scene_handles: Res<SceneAssets>,
-    texture_handles: Res<TextureAssets>,
-    mut gltfs: ResMut<Assets<Gltf>>,
-    mut textures: ResMut<Assets<Image>>,
-) {     
+    map: Res<Map>,
+) {
+    let mut spawn_pos = Vec3::new(0.0, 1.0, 0.0);
+    match map.rooms[0].room_type {
+        RoomType::Rectangle(rect) => {
+            spawn_pos = rect.center();
+        }
+    }
+
     // Player
     commands
         .spawn_bundle(InputManagerBundle::<Action> {
@@ -35,7 +35,7 @@ pub fn setup (
         })
         .insert(Player)
         .insert(Transform {
-            translation: Vec3::new(0., 1., 0.),
+            translation: spawn_pos,
             ..Default::default()
         })
         .insert(GlobalTransform::identity())
@@ -64,25 +64,6 @@ pub fn setup (
                 ..Default::default()
             });
         });
-
-
-    //let mut room = gltfs.get(gltf_handles.room.clone()).unwrap();
-
-    //for obj in room.meshes.iter() {
-
-    //}
-
-    //commands
-    //    .spawn_scene(scene_handles.room.clone());
-        
-
-
-
-
-
-
-    game_state.set(GameState::Playing);
-    //commands.insert_resource(NextState(GameState::Playing));
 }
 
 pub fn check_scene_objects (
