@@ -79,9 +79,6 @@ pub fn map_branching_generation (
 
     tile_offsets: Res<TileOffsets>,
 ) {
-    // Enter loop.
-    // Pick random exit.
-
     let mut rng = rand::thread_rng();
     let mut generation_done = true;
 
@@ -121,18 +118,24 @@ pub fn map_branching_generation (
                         generation_done = false;
                      
                         let vector = path[path.len() - 1] - path[path.len() - 2];
-
+                        let mut pos1 = path[path.len() - 1] + vector;
 
                         let w = rng.gen_range(MIN_SIZE..MAX_SIZE);
                         let h = rng.gen_range(MIN_HEIGHT..MAX_HEIGHT);
                         let l = rng.gen_range(MIN_SIZE..MAX_SIZE);
 
-                        let room = Rect3::new(IVec3::new(x, y, z), w, h, l);
+                        if vector.x != 0 {
+                            pos1.z -= l/2;
+                        }
+                        else if vector.z != 0 {
+                            pos1.x -= w/2;
+                        }
+
+                        let rect = Rect3::new(pos1, w, h, l);
 
                         
-
                         map.rooms.push(Room::simple_rect(
-                            room,
+                            rect,
                             Vec::new(),
                             tiles.grass.clone(),
                         ));
@@ -411,6 +414,11 @@ pub struct Tile {
     pub material: Handle<StandardMaterial>,
 }
 
+//#[derive(Default, Debug, Clone, PartialEq)]
+//pub struct Tile {
+//    pub Tiles: 
+//}
+
 #[derive(Clone)]
 pub struct Map {
     pub width: i32,
@@ -659,7 +667,44 @@ impl Map {
         points
     }
 
+    /// Checks if a rect is not OOB
+    pub fn rect_valid(&self, rect: Rect3) -> bool {
+        rect.pos1.x > 0 || rect.pos1.y > 0 || rect.pos1.z > 0 ||
+        rect.pos1.x < self.width - 1 || rect.pos1.y < self.height - 1 || rect.pos1.z < self.length - 1 ||
+        rect.pos2.x > 0 || rect.pos2.y > 0 || rect.pos2.z > 0 ||
+        rect.pos2.x < self.width - 1 || rect.pos2.y < self.height - 1 || rect.pos2.z < self.length - 1
+    }
 
+    pub fn rect_intersects(&self, rect: Rect3) -> bool {
+        let min = rect.min();
+        let max = rect.max();
+
+        // Check other rects (They may not be spawned yet?)
+        for room in self.rooms {
+            match room.room_type {
+                RoomType::Rectangle(room_rect) => {
+                    if rect.intersect(&room_rect) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+
+        // Iterate over rects values to see if any collide with any spawned tiles.
+        for x in min.x..=max.x {
+            for y in min.y..=max.y {
+                for z in min.z..=min.z {
+
+                    if self.tiles[[x as usize, y as usize, z as usize]].is_some() {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
 }
 
 #[derive(Clone, Debug)]
