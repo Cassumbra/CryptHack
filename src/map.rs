@@ -414,10 +414,27 @@ pub struct Tile {
     pub material: Handle<StandardMaterial>,
 }
 
-//#[derive(Default, Debug, Clone, PartialEq)]
-//pub struct Tile {
-//    pub Tiles: 
-//}
+#[derive(Debug, Clone, PartialEq)]
+pub struct Section {
+    pub tiles: EnumMap<TileType, Option<Tile>>,
+    pub is_occupied: bool,
+}
+impl Default for Section {
+    fn default() -> Section {
+        Section {
+            tiles: enum_map! { _ => None},
+            is_occupied: false,
+        }
+    }
+}
+impl Section {
+    fn clear(&mut self) {
+        self.tiles.clear();
+        self.is_occupied = false;
+    }
+
+    fn set_tile()
+}
 
 #[derive(Clone)]
 pub struct Map {
@@ -425,7 +442,7 @@ pub struct Map {
     pub height: i32,
     pub length: i32,
     pub rooms: Vec<Room>,
-    pub tiles: Array3<EnumMap<TileType, Option<Tile>>>,
+    pub sections: Array3<Section>,
     pub tile_offsets: TileOffsets,
 }
 impl Default for Map {
@@ -437,11 +454,9 @@ impl Default for Map {
             height: 10,
             length: 40,
             rooms: Vec::new(),
-            tiles: Array3::<EnumMap<TileType, Option<Tile>>>::from_elem(
+            sections: Array3::<Section>::from_elem(
                 (80, 10, 40),
-                enum_map ! {
-                    _ => None
-                }
+                Section::default()
             ),
             tile_offsets: TileOffsets::default(),
         }
@@ -459,34 +474,34 @@ impl Map {
                         let min = rect.min();
                         let max = rect.max();
 
-                        let mut area = self.tiles.slice_mut(
+                        let mut area = self.sections.slice_mut(
                             s![min.x as i32..=max.x as i32,
                                min.y as i32..=max.y as i32,
                                min.z as i32..=max.z as i32]
                         );
                 
-                        for ((x, y, z), tile) in area.indexed_iter_mut() {
-                            tile.clear();
+                        for ((x, y, z), section) in area.indexed_iter_mut() {
+                            section.tiles.clear();
                 
                             // Is there a better way to do this?
                             if y == (max.y - min.y) as usize {
-                                tile[TileType::Ceiling] = Some(room.ceiling.clone());
+                                section.tiles[TileType::Ceiling] = Some(room.ceiling.clone());
                             }
                             if z == (max.z - min.z) as usize {
-                                tile[TileType::North] = Some(room.walls.clone());
+                                section.tiles[TileType::North] = Some(room.walls.clone());
                             }
                             if x == (max.x - min.x) as usize {
-                                tile[TileType::East] = Some(room.walls.clone());
+                                section.tiles[TileType::East] = Some(room.walls.clone());
                             }
                             // These are fine.
                             if y == 0 {
-                                tile[TileType::Floor] = Some(room.floor.clone());
+                                section.tiles[TileType::Floor] = Some(room.floor.clone());
                             }
                             if z == 0 {
-                                tile[TileType::South] = Some(room.walls.clone());
+                                section.tiles[TileType::South] = Some(room.walls.clone());
                             }
                             if x == 0 as usize {
-                                tile[TileType::West] = Some(room.walls.clone());
+                                section.tiles[TileType::West] = Some(room.walls.clone());
                             }
                         }
                     }
@@ -498,7 +513,7 @@ impl Map {
                     match &mut exit.exit_type {
                         ExitType::Doorway { location, orientation, path, need_room, ceiling, walls, floor } => {
                             let mut intersected = false;
-                            self.tiles[[location.x as usize, location.y as usize, location.z as usize]][*orientation] = None;
+                            self.sections[[location.x as usize, location.y as usize, location.z as usize]].tiles[*orientation] = None;
 
                             'path_loop: for c in 0..path.len() {
                                 let current = path[c];
