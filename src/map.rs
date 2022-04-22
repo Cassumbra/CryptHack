@@ -38,8 +38,6 @@ impl Plugin for MapPlugin {
 
 // Systems
 pub fn map_branching_start (
-    mut ev_map_change: EventWriter<MapChangeEvent>,
-    
     mut map: ResMut<Map>,
     tiles: Res<TileAssets>,
 ) {
@@ -67,20 +65,17 @@ pub fn map_branching_start (
     let exits = map.rand_surface_wall_points(1, 3, &room);
 
     map.rooms[0].map_empty_doorways(exits, tiles.grass.clone());
-
-    ev_map_change.send(MapChangeEvent);
 }
 
 pub fn map_branching_generation (
-    mut ev_map_change: EventWriter<MapChangeEvent>,
-    mut ev_spawn_surface: EventWriter<SpawnSurfaceEvent>,
-    
+    mut ev_spawn_surface: EventWriter<SpawnSurfaceEvent>,  
 
     mut map: ResMut<Map>,
     mut game_state: ResMut<State<GameState>>,
 
     material_handles: Res<MaterialAssets>,
     meshes: Res<MeshAssets>,
+    tiles: Res<TileAssets>,
 
     tile_offsets: Res<TileOffsets>,
 ) {
@@ -95,12 +90,17 @@ pub fn map_branching_generation (
         let exit_num = room.exits.len();
         for exit in room.exits.iter_mut().choose_multiple(&mut rng, exit_num) {
             match &mut exit.exit_type {
-                ExitType::Doorway { location, orientation, path, ceiling, walls, floor } => {
+                ExitType::Doorway { location, orientation, path, need_room, ceiling, walls, floor } => {
+
+
                     if path.is_empty() {
-                        let turns = rng.gen_range(MIN_TURNS..=MAX_TURNS - 1) + 1;
+                        generation_done = false;
+
                         let mut current_orientation = orientation.clone();
                         let mut vector = tile_offsets.0[current_orientation].translation * 2.0;
                         let mut current_location = location.clone();
+
+                        let turns = rng.gen_range(MIN_TURNS..=MAX_TURNS - 1) + 1;
                         for t in 0..=turns {
                             let turn_left = rng.gen_bool(0.5);
                             let distance = rng.gen_range(MIN_DIST..=MAX_DIST);
@@ -109,15 +109,36 @@ pub fn map_branching_generation (
                                 path.push(current_location);
                             }
 
-
                             if t != turns {
                                 current_orientation = current_orientation.rotate90(turn_left);
                                 vector = tile_offsets.0[current_orientation].translation * 2.0;
                             }
                         }
                     }
+
+                    // Spawn room here, if applicable.
+                    if *need_room {
+                        generation_done = false;
+                     
+                        let vector = path[path.len() - 1] - path[path.len() - 2];
+
+
+                        let w = rng.gen_range(MIN_SIZE..MAX_SIZE);
+                        let h = rng.gen_range(MIN_HEIGHT..MAX_HEIGHT);
+                        let l = rng.gen_range(MIN_SIZE..MAX_SIZE);
+
+                        let room = Rect3::new(IVec3::new(x, y, z), w, h, l);
+
+                        
+
+                        map.rooms.push(Room::simple_rect(
+                            room,
+                            Vec::new(),
+                            tiles.grass.clone(),
+                        ));
+                    }
+
                     
-                    //generation_done = false;
                 }
 
                 _ => { }
@@ -361,13 +382,27 @@ impl Rect3 {
 
     // Returns true if this overlaps with other
     pub fn intersect(&self, other: &Rect3) -> bool {
-        self.pos1.x <= other.pos2.x && self.pos2.x >= other.pos1.x &&
-        self.pos1.y <= other.pos2.y && self.pos2.y >= other.pos1.y &&
-        self.pos1.z <= other.pos2.z && self.pos2.z >= other.pos1.z
+        let min_self = self.min();
+        let max_self = self.min();
+
+        let min_other = other.min();
+        let max_other = other.max();
+
+        min_self.x <= max_other.x && max_self.x >= min_other.x &&
+        min_self.y <= max_other.y && max_self.y >= min_other.y &&
+        min_self.z <= max_other.z && max_self.z >= min_other.z
     }
 
     pub fn center(&self) -> Vec3 { 
         Vec3::new((self.pos1.x + self.pos2.x) as f32 / 2.0, (self.pos1.y + self.pos2.y) as f32 /2.0, (self.pos1.z + self.pos2.z) as f32 / 2.0)
+    }
+    
+    pub fn min(&self) -> IVec3 {
+        IVec3::new(self.pos1.x.min(self.pos2.x), self.pos1.y.min(self.pos2.y), self.pos1.z.min(self.pos2.z))
+    }
+
+    pub fn max(&self) -> IVec3 {
+        IVec3::new(self.pos1.x.max(self.pos2.x), self.pos1.y.max(self.pos2.y), self.pos1.z.max(self.pos2.z))
     }
 }
 
@@ -413,23 +448,26 @@ impl Map {
             if !room.spawned {
                 match room.room_type {
                     RoomType::Rectangle(rect) => {
+                        let min = rect.min();
+                        let max = rect.max();
+
                         let mut area = self.tiles.slice_mut(
-                            s![rect.pos1.x as i32..=rect.pos2.x as i32,
-                               rect.pos1.y as i32..=rect.pos2.y as i32,
-                               rect.pos1.z as i32..=rect.pos2.z as i32]
+                            s![min.x as i32..=max.x as i32,
+                               min.y as i32..=max.y as i32,
+                               min.z as i32..=max.z as i32]
                         );
                 
                         for ((x, y, z), tile) in area.indexed_iter_mut() {
                             tile.clear();
                 
                             // Is there a better way to do this?
-                            if y == (rect.pos2.y - rect.pos1.y) as usize {
+                            if y == (max.y - min.y) as usize {
                                 tile[TileType::Ceiling] = Some(room.ceiling.clone());
                             }
-                            if z == (rect.pos2.z - rect.pos1.z) as usize {
+                            if z == (max.z - min.z) as usize {
                                 tile[TileType::North] = Some(room.walls.clone());
                             }
-                            if x == (rect.pos2.x - rect.pos1.x) as usize {
+                            if x == (max.x - min.x) as usize {
                                 tile[TileType::East] = Some(room.walls.clone());
                             }
                             // These are fine.
@@ -450,8 +488,10 @@ impl Map {
             for exit in room.exits.iter_mut() {
                 if !exit.spawned {
                     match &mut exit.exit_type {
-                        ExitType::Doorway { location, orientation, path, ceiling, walls, floor } => {
+                        ExitType::Doorway { location, orientation, path, need_room, ceiling, walls, floor } => {
+                            let mut intersected = false;
                             self.tiles[[location.x as usize, location.y as usize, location.z as usize]][*orientation] = None;
+
                             'path_loop: for c in 0..path.len() {
                                 let current = path[c];
 
@@ -480,6 +520,7 @@ impl Map {
 
                                 for tile in current_tile.iter() {
                                     if tile.1.is_some() {
+                                        intersected = true;
                                         if current.z - 1 != previous.z {
                                             current_tile[TileType::North] = None;
                                         }
@@ -519,6 +560,9 @@ impl Map {
                                 current_tile[TileType::Floor] = Some(floor.clone());
                                 current_tile[TileType::Ceiling] = Some(floor.clone());
                             }
+                            if !intersected {
+                                need_room = &mut true;
+                            }
                         }
     
                         _ => {
@@ -534,23 +578,26 @@ impl Map {
     }
 
     fn create_rect(&mut self, floor: Tile, walls: Tile, ceiling: Tile, rect: &Rect3) {
+        let min = rect.min();
+        let max = rect.max();
+
         let mut area = self.tiles.slice_mut(
-            s![rect.pos1.x as i32..=rect.pos2.x as i32,
-               rect.pos1.y as i32..=rect.pos2.y as i32,
-               rect.pos1.z as i32..=rect.pos2.z as i32]
+            s![min.x as i32..=max.x as i32,
+               min.y as i32..=max.y as i32,
+               min.z as i32..=max.z as i32]
         );
 
         for ((x, y, z), tile) in area.indexed_iter_mut() {
             tile.clear();
 
             // Is there a better way to do this?
-            if y == (rect.pos2.y - rect.pos1.y) as usize {
+            if y == (max.y - min.y) as usize {
                 tile[TileType::Ceiling] = Some(ceiling.clone());
             }
-            if z == (rect.pos2.z - rect.pos1.z) as usize {
+            if z == (max.z - min.z) as usize {
                 tile[TileType::North] = Some(floor.clone());
             }
-            if x == (rect.pos2.x - rect.pos1.x) as usize {
+            if x == (max.x - min.x) as usize {
                 tile[TileType::East] = Some(floor.clone());
             }
             // These are fine.
@@ -573,13 +620,16 @@ impl Map {
     
         let point_count = rng.gen_range(min_points..=max_points);
     
-        for x in rect.pos1.x..=rect.pos2.x {
-            surface_wall_points.push(IVec3::new(x, rect.pos1.y, rect.pos1.z));
-            surface_wall_points.push(IVec3::new(x, rect.pos1.y, rect.pos2.z));
+        let min = rect.min();
+        let max = rect.max();
+
+        for x in min.x..=max.x {
+            surface_wall_points.push(IVec3::new(x, min.y, min.z));
+            surface_wall_points.push(IVec3::new(x, min.y, max.z));
         }
-        for z in rect.pos1.z..=rect.pos2.z {
-            surface_wall_points.push(IVec3::new(rect.pos1.x, rect.pos1.y, z));
-            surface_wall_points.push(IVec3::new(rect.pos2.x, rect.pos1.y, z));
+        for z in min.z..=max.z {
+            surface_wall_points.push(IVec3::new(min.x, min.y, z));
+            surface_wall_points.push(IVec3::new(max.x, min.y, z));
         }
     
         let mut points = Vec::<(IVec3, TileType)>::new();
@@ -652,24 +702,13 @@ pub enum ExitType {
         location: IVec3,
         orientation: TileType,
         path: Vec<IVec3>,
+        need_room: bool,
         ceiling: Tile,
         walls: Tile,
         floor: Tile,
     },
 }
-/*
-impl ExitType {
-    pub fn add_path (&mut self, p: &mut Vec<IVec3>) {
-        match self {
-            ExitType::Doorway { location: location, orientation: orientation, path: path } => {
-                path = p;
-            }
 
-            _ => {}
-        }
-    }
-}
- */
 
 #[derive(Clone, Debug)]
 pub struct Exit {
@@ -682,7 +721,14 @@ impl Exit {
             // We are lying here, but its a white lie because there's nothing to spawn yet.
             // It can be set to false later once it has an actual pathway somewhere.
             spawned: true,
-            exit_type: ExitType::Doorway {location: position, orientation: orientation, path: Vec::new(), ceiling: tile.clone(), walls: tile.clone(), floor: tile.clone()}
+            exit_type: ExitType::Doorway {location: position, 
+                orientation: orientation, 
+                path: Vec::new(),
+                need_room: false,
+                ceiling: tile.clone(), 
+                walls: tile.clone(), 
+                floor: tile.clone()
+            }
         }
     }
 }
