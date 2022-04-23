@@ -57,16 +57,18 @@ pub fn map_branching_start (
     map.rooms.push(Room::simple_rect(
         room,
         Vec::new(),
+        Vec::new(),
         tiles.grass.clone(),
     ));
 
     map.update_tiles();
 
-    let exits = map.rand_surface_wall_points(1, 3, &room);
+    let exits = map.rand_surface_wall_points(9, 9, &room);
 
     map.rooms[0].map_empty_doorways(exits, tiles.grass.clone());
 }
 
+/// Create geometric map representation over time
 pub fn map_branching_generation (
     mut ev_spawn_surface: EventWriter<SpawnSurfaceEvent>,  
 
@@ -82,18 +84,20 @@ pub fn map_branching_generation (
     let mut rng = rand::thread_rng();
     let mut generation_done = true;
 
+    // Mutable vec for the borrow checker.
+    let mut rooms = Vec::<(Rect3, Entrance)>::new();
+
     let room_num = map.rooms.len();
     for room in map.rooms.iter_mut().choose_multiple(&mut rng, room_num) {
         let exit_num = room.exits.len();
         for exit in room.exits.iter_mut().choose_multiple(&mut rng, exit_num) {
             match &mut exit.exit_type {
                 ExitType::Doorway { location, orientation, path, need_room, ceiling, walls, floor } => {
-
+                    let mut current_orientation = orientation.clone();
 
                     if path.is_empty() {
                         generation_done = false;
 
-                        let mut current_orientation = orientation.clone();
                         let mut vector = tile_offsets.0[current_orientation].translation * 2.0;
                         let mut current_location = location.clone();
 
@@ -111,14 +115,16 @@ pub fn map_branching_generation (
                                 vector = tile_offsets.0[current_orientation].translation * 2.0;
                             }
                         }
+
+                        exit.spawned = false;
                     }
 
-                    // Spawn room here, if applicable.
                     if *need_room {
                         generation_done = false;
                      
                         let vector = path[path.len() - 1] - path[path.len() - 2];
-                        let mut pos1 = path[path.len() - 1] + vector;
+                        let next = path[path.len() - 1] + vector;
+                        let mut pos1 = next;
 
                         let w = rng.gen_range(MIN_SIZE..MAX_SIZE);
                         let h = rng.gen_range(MIN_HEIGHT..MAX_HEIGHT);
@@ -132,23 +138,38 @@ pub fn map_branching_generation (
                         }
 
                         let rect = Rect3::new(pos1, w, h, l);
+                        println!("normal: {:?}", current_orientation);
+                        println!("rotated 180: {:?}", current_orientation.rotate90(true).rotate90(true));
+                        println!("normal (again): {:?}", current_orientation);
+                        let entrance = Entrance{location: next, orientation: current_orientation.rotate90(true).rotate90(true)};
 
-                        
-                        map.rooms.push(Room::simple_rect(
-                            rect,
-                            Vec::new(),
-                            tiles.grass.clone(),
-                        ));
+                        // The borrow checker must be appeased.
+                        rooms.push((rect, entrance));
+
+
                     }
-
-                    
                 }
 
                 _ => { }
             }
 
-            exit.spawned = false;
+            
         }
+    }
+
+    // We must appease the borrow checker.
+    for (room, entrance) in rooms {
+        if rect_valid(IVec3::new(map.width, map.height, map.length), room) && !rect_intersects(&map, room) {
+            map.rooms.push(
+                Room::simple_rect(
+                    room,
+                    Vec::new(),
+                    vec![entrance],
+                    tiles.grass.clone(),
+                )
+            );
+        }
+        map.update_tiles();
     }
 
     map.update_tiles();
@@ -493,10 +514,44 @@ impl Map {
                 }
                 room.spawned = true;
             }
+
+            for entrance in room.entrances.iter_mut() {
+                self.tiles[[entrance.location.x as usize, entrance.location.y as usize, entrance.location.z as usize]][entrance.orientation] = None;
+            }
+
             for exit in room.exits.iter_mut() {
-                if !exit.spawned {
-                    match &mut exit.exit_type {
-                        ExitType::Doorway { location, orientation, path, need_room, ceiling, walls, floor } => {
+                match &mut exit.exit_type {
+                    ExitType::Doorway { location, orientation, path, need_room, ceiling, walls, floor } => {
+                        if *need_room == true {
+                            let vector = path[path.len() - 1] - path[path.len() - 2];
+                            let next = path[path.len() - 1] + vector;
+
+                            if next.x < 0 || next.y < 0 || next.z < 0 || next.x > self.width - 1 || next.y > self.height - 1 || next.z > self.length - 1 {
+                                // Uh oh, our path leads off map
+                                // TODO: stuff
+
+                                // Temp: just say we dont need a room lol
+                                *need_room = false;
+                            }
+                            else {
+                                let next_tile = &self.tiles[[next.x as usize, next.y as usize, next.z as usize]];
+
+                                let mut empty = self.tiles[[0, 0, 0]].clone();
+                                empty.clear();
+    
+                                if *next_tile == empty {
+                                    if !exit.spawned {
+                                        path.clear();
+                                    }
+                                }
+                                else {
+                                    *need_room = false;
+                                }
+                            }
+
+                        }
+
+                        if !exit.spawned {
                             let mut intersected = false;
                             self.tiles[[location.x as usize, location.y as usize, location.z as usize]][*orientation] = None;
 
@@ -507,7 +562,7 @@ impl Map {
                                     path.drain(c..path.len());
                                     break 'path_loop;
                                 }
-    
+
                                 let current_tile = &mut self.tiles[[current.x as usize, current.y as usize, current.z as usize]];
 
                                 let previous = 
@@ -551,7 +606,6 @@ impl Map {
                                 current_tile[TileType::South] = Some(floor.clone());
                                 current_tile[TileType::West] = Some(floor.clone());
 
-
                                 if current.z + 1 == previous.z || current.z + 1 == next.z {
                                     current_tile[TileType::North] = None;
                                 }
@@ -569,18 +623,25 @@ impl Map {
                                 current_tile[TileType::Ceiling] = Some(floor.clone());
                             }
                             if !intersected {
-                                need_room = &mut true;
+                                *need_room = true;
                             }
+
+                            exit.spawned = true;
                         }
-    
-                        _ => {
-    
-                        }
+                        
+
+
                     }
 
-                    exit.spawned = true;
+                    _ => {
+
+                    }
                 }
+
+
+
                 
+
             }
         }
     }
@@ -667,20 +728,19 @@ impl Map {
         points
     }
 
-    /// Checks if a rect is not OOB
+    /*
     pub fn rect_valid(&self, rect: Rect3) -> bool {
         rect.pos1.x > 0 || rect.pos1.y > 0 || rect.pos1.z > 0 ||
         rect.pos1.x < self.width - 1 || rect.pos1.y < self.height - 1 || rect.pos1.z < self.length - 1 ||
         rect.pos2.x > 0 || rect.pos2.y > 0 || rect.pos2.z > 0 ||
         rect.pos2.x < self.width - 1 || rect.pos2.y < self.height - 1 || rect.pos2.z < self.length - 1
     }
-
+    
     pub fn rect_intersects(&self, rect: Rect3) -> bool {
         let min = rect.min();
         let max = rect.max();
-
         // Check other rects (They may not be spawned yet?)
-        for room in self.rooms {
+        for room in &self.rooms {
             match room.room_type {
                 RoomType::Rectangle(room_rect) => {
                     if rect.intersect(&room_rect) {
@@ -689,23 +749,82 @@ impl Map {
                 }
             }
         }
-
-
         // Iterate over rects values to see if any collide with any spawned tiles.
+        let mut empty = self.tiles[[0, 0, 0]].clone();
+        empty.clear();
+        
         for x in min.x..=max.x {
             for y in min.y..=max.y {
                 for z in min.z..=min.z {
-
-                    if self.tiles[[x as usize, y as usize, z as usize]].is_some() {
+                    let tile = &self.tiles[[x as usize, y as usize, z as usize]];
+                    if *tile != empty {
                         return true;
                     }
                 }
             }
         }
-
         return false;
     }
+    
+    pub fn push_room_if_ok (&mut self, room: Room) -> Result<String, String> {
+        match room.room_type {
+            RoomType::Rectangle(rect) => {
+                if !self.rect_valid(rect) {
+                    Err("OOB".to_string())
+                } 
+                else if self.rect_intersects(rect) {
+                    Err("Intersects".to_string())
+                }
+                else {
+                    self.rooms.push(room);
+                    Ok("Success".to_string())
+                }
+            }
+        }
+    }
+     */
 }
+
+// Helper functions
+/// Checks if a rect is not OOB
+
+pub fn rect_valid(bounds: IVec3, rect: Rect3) -> bool {
+    rect.pos1.x >= 0 && rect.pos1.y >= 0 && rect.pos1.z >= 0 &&
+    rect.pos1.x < bounds.x - 1 && rect.pos1.y < bounds.y - 1 && rect.pos1.z < bounds.z - 1 &&
+    rect.pos2.x >= 0 && rect.pos2.y >= 0 && rect.pos2.z >= 0 &&
+    rect.pos2.x < bounds.x - 1 && rect.pos2.y < bounds.y - 1 && rect.pos2.z < bounds.z - 1
+}
+
+pub fn rect_intersects(map: &Map, rect: Rect3) -> bool {
+    let min = rect.min();
+    let max = rect.max();
+    // Check other rects (They may not be spawned yet?)
+    for room in &map.rooms {
+        match room.room_type {
+            RoomType::Rectangle(room_rect) => {
+                if rect.intersect(&room_rect) {
+                    return true;
+                }
+            }
+        }
+    }
+    // Iterate over rects values to see if any collide with any spawned tiles.
+    let mut empty = map.tiles[[0, 0, 0]].clone();
+    empty.clear();
+    
+    for x in min.x..=max.x {
+        for y in min.y..=max.y {
+            for z in min.z..=min.z {
+                let tile = &map.tiles[[x as usize, y as usize, z as usize]];
+                if tile != &empty {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
 
 #[derive(Clone, Debug)]
 pub enum RoomType {
@@ -717,16 +836,18 @@ pub struct Room {
     pub spawned: bool,
     pub room_type: RoomType,
     pub exits: Vec<Exit>,
+    pub entrances: Vec<Entrance>,
     pub ceiling: Tile,
     pub walls: Tile,
     pub floor: Tile,
 }
 impl Room {
-    pub fn simple_rect (room: Rect3, exits: Vec<(IVec3, TileType)>, tile: Tile) -> Room {
+    pub fn simple_rect (room: Rect3, exits: Vec<(IVec3, TileType)>, entrances: Vec<Entrance>, tile: Tile) -> Room {
         Room {
             spawned: false,
             room_type: RoomType::Rectangle(room),
             exits: exits.iter().map(|(pos, orientation)| Exit::empty_doorway(*pos, *orientation, tile.clone())).collect(),
+            entrances: entrances,
             ceiling: tile.clone(),
             walls: tile.clone(),
             floor: tile.clone(),
@@ -776,4 +897,10 @@ impl Exit {
             }
         }
     }
+}
+
+#[derive(Clone, Debug)]
+pub struct Entrance {
+    location: IVec3,
+    orientation: TileType,
 }
