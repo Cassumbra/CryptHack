@@ -35,22 +35,22 @@ pub fn process_actions(
         }
 
         
-        if action_state.just_pressed(&Action::Jump) {
+        if action_state.just_pressed(Action::Jump) {
             velocity.linear += Vec3::new(0., 5., 0.); 
         }
 
         let mut direction = Vec3::default();
-        if action_state.pressed(&Action::WalkForward) {
+        if action_state.pressed(Action::WalkForward) {
             direction += -transform.local_z();
         }
-        else if action_state.pressed(&Action::WalkBackward) {
+        else if action_state.pressed(Action::WalkBackward) {
             direction += transform.local_z();
         }
 
-        if action_state.pressed(&Action::StrafeLeft) {
+        if action_state.pressed(Action::StrafeLeft) {
             direction += -transform.local_x();
         }
-        else if action_state.pressed(&Action::StrafeRight) {
+        else if action_state.pressed(Action::StrafeRight) {
             direction += transform.local_x();
         }
         

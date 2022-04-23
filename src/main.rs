@@ -1,6 +1,5 @@
 use bevy::prelude::*;
 use bevy_asset_loader::{AssetLoader, AssetCollection};
-use bevy_polyline::PolylinePlugin;
 //use iyes_loopless::prelude::*;
 use heron::prelude::*;
 use leafwing_input_manager::plugin::InputManagerPlugin;
@@ -35,8 +34,7 @@ fn main() {
 
         .add_plugins(DefaultPlugins)
         .add_plugin(PhysicsPlugin::default())
-        .add_plugin(InputManagerPlugin::<Action, GameState>::run_in_state(GameState::Playing))
-        .add_plugin(PolylinePlugin)
+        .add_plugin(InputManagerPlugin::<Action>::default())
 
         .add_plugin(MapPlugin)
         .add_plugin(AssetPlugin)
