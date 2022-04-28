@@ -13,6 +13,7 @@ use player::*;
 pub mod setup;
 use setup::*;
 
+#[path = "map/map.rs"]
 pub mod map;
 use map::*;
 
@@ -22,7 +23,7 @@ use assets::*;
 fn main() {
     let mut app = App::new();
     AssetLoader::new(GameState::Loading)
-        .continue_to_state(GameState::Setup)
+        .continue_to_state(GameState::StartMapGen)
         .with_collection::<TextureAssets>()
         .build(&mut app);
 
@@ -52,14 +53,18 @@ fn main() {
 
         // TODO: Change this once asset_loader supports loopless.
         .add_system_set(
-            SystemSet::on_enter(GameState::Setup)
-                .with_system(map_branching_start.label("start_map"))
-                .with_system(setup.after("start_map"))
+            SystemSet::on_enter(GameState::StartMapGen)
+                .with_system(map_branching_start)
         )
 
         .add_system_set(
-            SystemSet::on_update(GameState::Setup)
+            SystemSet::on_update(GameState::MapGen)
                 .with_system(map_branching_generation)
+        )
+
+        .add_system_set(
+            SystemSet::on_enter(GameState::SpawnActors)
+            .with_system(spawn_actors)
         )
 
         // TODO: Change this once asset_loader supports loopless.
@@ -70,8 +75,18 @@ fn main() {
         )
 
         .add_system(check_scene_objects)
-        .add_system(spawn_surface)
-        .add_system(spawn_surfaces)
+
+        .add_system_set_to_stage(
+            CoreStage::PostUpdate,
+            SystemSet::new()
+                .with_system(spawn_rooms)
+                .with_system(spawn_exits.after(spawn_rooms))
+                .with_system(spawn_entrances.after(spawn_rooms))
+        )
+
+
+        //.add_system(spawn_surface)
+        //.add_system(spawn_surfaces)
 
         .run();
 }
@@ -81,6 +96,6 @@ fn main() {
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum GameState {
     Loading,
-    Setup,
+    StartMapGen, MapGen, SpawnActors,
     Playing,
 }

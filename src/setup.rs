@@ -1,25 +1,27 @@
-use bevy::{prelude::*, gltf::Gltf};
+use bevy::{prelude::*};
 use heron::{prelude::*, PendingConvexCollision};
 use leafwing_input_manager::prelude::*;
 
-use crate::{actions::Action, player::Player, map::{RoomType, Map}};
+use crate::{actions::Action, player::Player, map::geometric::Rect3Room, GameState};
 
-use super::{GameState, TextureAssets};
+//use super::{GameState, TextureAssets};
 
 const PLAYER_HEIGHT: f32 = 0.4;
 
 // Systems
-pub fn setup (
+pub fn spawn_actors (
     mut commands: Commands,
 
-    map: Res<Map>,
+    mut game_state: ResMut<State<GameState>>,
+
+    room_query: Query<&Rect3Room>,
 ) {
     let mut spawn_pos = Vec3::new(0.0, 1.0, 0.0);
-    match map.rooms[0].room_type {
-        RoomType::Rectangle(rect) => {
-            spawn_pos = rect.center();
-        }
-    }
+    let room = room_query.get_single().unwrap();
+    spawn_pos = room.rect.center();
+
+    println!("{:?}", room.rect);
+    println!("{:?}", room.rect.center());
 
     // Player
     commands
@@ -64,6 +66,8 @@ pub fn setup (
                 ..Default::default()
             });
         });
+
+    game_state.set(GameState::Playing);
 }
 
 pub fn check_scene_objects (

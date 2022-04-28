@@ -23,10 +23,12 @@ pub fn create_assets (
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     texture_handles: Res<TextureAssets>,
-    material_handles: Res<MaterialAssets>,
+    //material_handles: Res<MaterialAssets>,
 ) {
+    let plane = meshes.add(Mesh::from(shape::Plane {size: 1.0}));
+
     commands.insert_resource( MeshAssets {
-        plane: meshes.add(Mesh::from(shape::Plane {size: 1.0}))
+        plane: plane.clone()
     });
 
     let grass_texture = materials.add(StandardMaterial {
@@ -42,7 +44,7 @@ pub fn create_assets (
     });
 
     commands.insert_resource( TileAssets {
-        grass: Tile {material: grass_texture.clone()},
+        grass: Tile {mesh: plane.clone(), material: grass_texture.clone()},
     });
 }
 
