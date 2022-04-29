@@ -22,10 +22,6 @@ use assets::*;
 
 fn main() {
     let mut app = App::new();
-    AssetLoader::new(GameState::Loading)
-        .continue_to_state(GameState::StartMapGen)
-        .with_collection::<TextureAssets>()
-        .build(&mut app);
 
     app
         .add_state(GameState::Loading)
@@ -47,7 +43,7 @@ fn main() {
         //)
 
         .add_system_set(
-            SystemSet::on_exit(GameState::Loading)
+            SystemSet::on_enter(GameState::Loading)
                 .with_system(create_assets.label("create_assets"))
         )
 
