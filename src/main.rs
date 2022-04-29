@@ -1,6 +1,5 @@
 use bevy::prelude::*;
-use bevy_asset_loader::{AssetLoader, AssetCollection};
-//use iyes_loopless::prelude::*;
+use iyes_loopless::prelude::*;
 use heron::prelude::*;
 use leafwing_input_manager::plugin::InputManagerPlugin;
 
@@ -24,8 +23,6 @@ fn main() {
     let mut app = App::new();
 
     app
-        .add_state(GameState::Loading)
-    
         .insert_resource(Msaa { samples: 4 })
         .insert_resource(Gravity::from(Vec3::new(0., -9.81, 0.)))        
 
@@ -36,38 +33,25 @@ fn main() {
         .add_plugin(MapPlugin)
         .add_plugin(AssetPlugin)
 
-        //.add_stage_after(
-        //    CoreStage::PreUpdate,
-        //    "TransitionStage",
-        //    StateTransitionStage::new(GameState::Setup)
-        //)
+        .add_loopless_state(GameState::Loading)
 
-        .add_system_set(
-            SystemSet::on_enter(GameState::Loading)
-                .with_system(create_assets.label("create_assets"))
-        )
+        .add_enter_system(GameState::Loading, create_assets)
 
-        // TODO: Change this once asset_loader supports loopless.
-        .add_system_set(
-            SystemSet::on_enter(GameState::StartMapGen)
-                .with_system(map_branching_start)
-        )
+        //.add_enter_system(GameState::StartMapGen, map_branching_start)
+        .add_system(map_branching_start.run_in_state(GameState::StartMapGen))
 
-        .add_system_set(
-            SystemSet::on_update(GameState::MapGen)
-                .with_system(map_branching_generation)
-        )
+        .add_system(map_branching_generation.run_in_state(GameState::MapGen))
 
-        .add_system_set(
-            SystemSet::on_enter(GameState::SpawnActors)
-            .with_system(spawn_actors)
-        )
+        .add_enter_system(GameState::SpawnActors, spawn_actors)
+
 
         // TODO: Change this once asset_loader supports loopless.
         .add_system_set(
-            SystemSet::on_update(GameState::Playing)
+            ConditionSet::new()
+                .run_in_state(GameState::Playing)
                 .with_system(process_actions)
                 .with_system(cursor_grab_system)
+                .into()
         )
 
         .add_system(check_scene_objects)

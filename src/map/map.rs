@@ -7,6 +7,7 @@ pub use geometric::*;
 
 pub mod grid;
 pub use grid::*;
+use iyes_loopless::state::NextState;
 use rand::{Rng, prelude::SliceRandom};
 
 use super::GameState;
@@ -49,11 +50,11 @@ pub fn map_branching_start (
     tiles: Res<TileAssets>,
 
     mut room_spawn_attempts: ResMut<RoomSpawnAttempts>,
-    mut game_state: ResMut<State<GameState>>,
 
     mut commands: Commands,
 ) {
-    
+    println!("starting map gen");
+
     let mut rng = rand::thread_rng();
     
     let w = rng.gen_range(MIN_SIZE..MAX_SIZE);
@@ -82,13 +83,12 @@ pub fn map_branching_start (
 
     **room_spawn_attempts = 1;
 
-    game_state.set(GameState::MapGen);
+    commands.insert_resource(NextState(GameState::MapGen));
 }
 
 
 pub fn map_branching_generation (
     mut map: ResMut<GridMap>,
-    mut game_state: ResMut<State<GameState>>,
     mut room_spawn_attempts: ResMut<RoomSpawnAttempts>,
 
     room_query: Query<(Entity, &Rect3Room, &Entrances, &Exits)>,
@@ -96,6 +96,8 @@ pub fn map_branching_generation (
 
     mut commands: Commands,
 ) {
+    println!("branching gen");
+
     let mut rng = rand::thread_rng();
 
     let rooms = room_query.iter().collect::<Vec<(Entity, &Rect3Room, &Entrances, &Exits)>>();
@@ -113,12 +115,12 @@ pub fn map_branching_generation (
             // TODO: Delete entrances
             // TODO: Delete exits
 
-            game_state.set(GameState::StartMapGen);
+            commands.insert_resource(NextState(GameState::StartMapGen));
         }
         else {
             // Finish generation
 
-            game_state.set(GameState::SpawnActors);
+            commands.insert_resource(NextState(GameState::SpawnActors));
         }
     }
 
@@ -147,6 +149,7 @@ pub fn spawn_rooms (
     mut commands: Commands,
 ) {
     for (entity, room) in room_query.iter() {
+        println!("spawning room");
         let min = room.rect.min();
         let max = room.rect.max();
 

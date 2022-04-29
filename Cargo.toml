@@ -11,7 +11,6 @@ heron = { version = "3.0.0", features = ["3d", "collision-from-mesh"] }
 
 leafwing-input-manager = "0.3.0"
 iyes_loopless = "0.5.0"
-bevy_asset_loader = {version = "0.10.0"}
 
 enum-map = "2.1.0"
 rand = { version = "0.8.5" }

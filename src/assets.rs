@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use bevy_asset_loader::AssetCollection;
+use iyes_loopless::state::NextState;
 
 use crate::{map::Tile, GameState};
 
@@ -19,8 +19,6 @@ impl Plugin for AssetPlugin {
 // For assets that we cannot load/create otherwise.
 // Programatic shit basically I guess.
 pub fn create_assets (
-    mut game_state: ResMut<State<GameState>>,
-
     mut commands: Commands,
 
     asset_server: Res<AssetServer>,
@@ -54,7 +52,7 @@ pub fn create_assets (
         grass: Tile {mesh: plane.clone(), material: grass_texture.clone()},
     });
 
-    game_state.set(GameState::StartMapGen);
+    commands.insert_resource(NextState(GameState::StartMapGen));
 }
 
 #[derive(Default)]

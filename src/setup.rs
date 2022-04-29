@@ -1,5 +1,6 @@
 use bevy::{prelude::*};
 use heron::{prelude::*, PendingConvexCollision};
+use iyes_loopless::state::NextState;
 use leafwing_input_manager::prelude::*;
 
 use crate::{actions::Action, player::Player, map::geometric::Rect3Room, GameState};
@@ -11,8 +12,6 @@ const PLAYER_HEIGHT: f32 = 0.4;
 // Systems
 pub fn spawn_actors (
     mut commands: Commands,
-
-    mut game_state: ResMut<State<GameState>>,
 
     room_query: Query<&Rect3Room>,
 ) {
@@ -66,7 +65,7 @@ pub fn spawn_actors (
             });
         });
 
-    game_state.set(GameState::Playing);
+    commands.insert_resource(NextState(GameState::Playing));
 }
 
 pub fn check_scene_objects (
