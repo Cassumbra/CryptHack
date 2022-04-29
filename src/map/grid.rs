@@ -9,21 +9,21 @@ use super::{geometric::Tile, WithinBoxIterator};
 
 
 // Helper Systems
-pub fn clear_tile ( commands: &mut Commands, map: &mut GridMap, location: IVec3) {
-    for (_tile, opt_entity) in map[location] {
+pub fn clear_tile ( commands: &mut Commands, map: &mut GridMap, position: IVec3) {
+    for (_tile, opt_entity) in map[position] {
         if let Some(entity) = opt_entity {
             commands.entity(entity).despawn();
         }
     }
 
-    map[location] = TileType::empty();
+    map[position] = TileType::empty();
 }
 
-pub fn spawn_tile ( commands: &mut Commands, map: &mut GridMap, tile: Tile, tile_type: TileType, location: IVec3) {
+pub fn spawn_tile ( commands: &mut Commands, map: &mut GridMap, tile: Tile, tile_type: TileType, position: IVec3) {
     let transformation = TileOffsets::default()[tile_type];
     let mut transform = Transform::default();
 
-    transform.translation = Vec3::new(location.x as f32, location.y as f32, location.z as f32) + transformation.translation;
+    transform.translation = Vec3::new(position.x as f32, position.y as f32, position.z as f32) + transformation.translation;
 
     if transformation.rotation.x != 0.0 {
         transform.rotate(Quat::from_rotation_x(transformation.rotation.x))
@@ -51,8 +51,10 @@ pub fn spawn_tile ( commands: &mut Commands, map: &mut GridMap, tile: Tile, tile
         .insert(CollisionLayers::default())
         .id();
 
-    map[location][tile_type] = Some(spawned_tile);
+    map[position][tile_type] = Some(spawned_tile);
 }
+
+
 
 // Resources
 #[derive(Clone, Deref, DerefMut)]
@@ -152,6 +154,11 @@ impl TileType {
 
     pub fn empty() -> EnumMap<TileType, Option<Entity>> {
         EnumMap::<TileType, Option<Entity>>::default()
+    }
+}
+impl Default for TileType {
+    fn default() -> Self {
+        TileType::Center
     }
 }
 

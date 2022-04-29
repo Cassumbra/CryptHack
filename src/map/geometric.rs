@@ -1,7 +1,54 @@
 use bevy::prelude::*;
+use rand::{Rng, prelude::SliceRandom};
 
-use super::WithinBoxIterator;
+use super::{WithinBoxIterator, TileType, GridMap};
 
+
+// Helper functions
+pub fn random_surface_wall_point(exclude: Vec<IVec3>, rect: Rect3, map: &GridMap) -> Option<(IVec3, TileType)> {
+    let mut rng = rand::thread_rng();
+    
+    let mut surface_wall_points = Vec::<IVec3>::new();
+
+    let min = rect.min();
+    let max = rect.max();
+
+    for x in min.x..=max.x {
+        surface_wall_points.push(IVec3::new(x, min.y, min.z));
+        surface_wall_points.push(IVec3::new(x, min.y, max.z));
+    }
+    for z in min.z..=max.z {
+        surface_wall_points.push(IVec3::new(min.x, min.y, z));
+        surface_wall_points.push(IVec3::new(max.x, min.y, z));
+    }
+
+    surface_wall_points.retain(|point| !exclude.contains(point));
+
+    if let Some(point) = surface_wall_points.choose(&mut rng) {
+        let map_point = map[*point];
+        let mut possible_walls = Vec::new();
+
+        // We should probably write a helper function for checking these...
+        if map_point[TileType::North].is_some()  {
+            possible_walls.push(TileType::North);
+        }
+        if map_point[TileType::East].is_some() {
+            possible_walls.push(TileType::East);
+        }
+        if map_point[TileType::South].is_some() {
+            possible_walls.push(TileType::South);
+        }
+        if map_point[TileType::West].is_some() {
+            possible_walls.push(TileType::West);
+        }
+
+        Some((*point, *possible_walls.choose(&mut rng).unwrap()))
+    }
+    else {
+        None
+    }
+    
+}
 
 // Components
 #[derive(Component, Default, Deref, DerefMut, Clone)]
@@ -41,10 +88,14 @@ impl IntoIterator for &Rect3Room {
 }
 
 #[derive(Component, Default, Deref, DerefMut, Clone)]
-pub struct Path (pub Vec<IVec3>);
+pub struct Path (pub Vec<IVec3Tile>);
 
 // Data
-
+#[derive(Default, Clone)]
+pub struct IVec3Tile {
+    pub orientation: TileType,
+    pub position: IVec3,
+}
 
 #[derive(Default, Debug, Clone, PartialEq)]
 pub struct Tile {

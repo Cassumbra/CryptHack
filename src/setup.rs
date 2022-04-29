@@ -17,11 +17,10 @@ pub fn spawn_actors (
     room_query: Query<&Rect3Room>,
 ) {
     let mut spawn_pos = Vec3::new(0.0, 1.0, 0.0);
-    let room = room_query.get_single().unwrap();
-    spawn_pos = room.rect.center();
-
-    println!("{:?}", room.rect);
-    println!("{:?}", room.rect.center());
+    if let Ok(room) = room_query.get_single() {
+        spawn_pos = room.rect.center();
+    }
+    
 
     // Player
     commands

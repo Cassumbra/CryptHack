@@ -92,6 +92,7 @@ pub fn map_branching_generation (
     mut room_spawn_attempts: ResMut<RoomSpawnAttempts>,
 
     room_query: Query<(Entity, &Rect3Room, &Entrances, &Exits)>,
+    entrance_query: Query<(Entity, &Path)>,
 
     mut commands: Commands,
 ) {
@@ -121,15 +122,22 @@ pub fn map_branching_generation (
         }
     }
 
+    /*
+    if let Ok((entity, room, entrances, exits)) = rooms.choose_weighted(&mut rng, |(_ent, _room, entrances, exits)| 1/(entrances.len() + exits.len() + 1)) {
+        let mut exclude = Vec::new();
+        
+        // TODO: Get positions of entrances and exits from here with queries.
+        //exclude.extend(entrances);
+        //exclude.extend(**exits);
 
-
-    let mut room = rooms.choose_weighted(&mut rng, |(_ent, _room, entrances, exits)| 1/(entrances.len() + exits.len() + 1));
-
-
-    // TODO: Actual stuff here
-
-
+        if let Some((exit_point, exit_orientation)) = random_surface_wall_point(exclude, room.rect, &*map) {
+            // TODO: Get to work on path generation.
+        }
+    }
+     */
 }
+
+
 
 pub fn spawn_rooms (
     mut map: ResMut<GridMap>,
@@ -143,7 +151,6 @@ pub fn spawn_rooms (
         let max = room.rect.max();
 
         for position in room {
-            println!("{:?}", position);
             clear_tile(&mut commands, &mut map, position);
     
             
@@ -178,6 +185,14 @@ pub fn spawn_exits (
 
 pub fn spawn_entrances (
 
+) {
+
+}
+
+// Helper Functions
+pub fn spawn_room (
+    mut map: ResMut<GridMap>,
+    mut commands: Commands,
 ) {
 
 }
