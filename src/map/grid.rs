@@ -8,6 +8,8 @@ use ndarray::{Array3, Axis};
 use super::{geometric::Tile, WithinBoxIterator};
 
 
+// TODO: We might want/need these functions to replace already existing tiles.
+//       Or we might want to make new functions to suit that purpose.
 // Helper Systems
 pub fn clear_position ( commands: &mut Commands, map: &mut GridMap, position: IVec3) {
     for (_tile, opt_entity) in map[position] {
