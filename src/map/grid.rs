@@ -9,7 +9,7 @@ use super::{geometric::Tile, WithinBoxIterator};
 
 
 // Helper Systems
-pub fn clear_tile ( commands: &mut Commands, map: &mut GridMap, position: IVec3) {
+pub fn clear_position ( commands: &mut Commands, map: &mut GridMap, position: IVec3) {
     for (_tile, opt_entity) in map[position] {
         if let Some(entity) = opt_entity {
             commands.entity(entity).despawn();
@@ -17,6 +17,14 @@ pub fn clear_tile ( commands: &mut Commands, map: &mut GridMap, position: IVec3)
     }
 
     map[position] = TileType::empty();
+}
+
+pub fn clear_tile ( commands: &mut Commands, map: &mut GridMap, tile_type: TileType, position: IVec3) {
+    if let Some(entity) = map[position][tile_type] {
+        commands.entity(entity).despawn_recursive();
+    }
+
+    map[position][tile_type] = None;
 }
 
 pub fn spawn_tile ( commands: &mut Commands, map: &mut GridMap, tile: Tile, tile_type: TileType, position: IVec3) {
@@ -75,6 +83,18 @@ impl GridMap {
     }
     pub fn max(&self) -> IVec3 {
         IVec3::new(self.width() - 1, self.height() - 1, self.length() - 1)
+    }
+
+    pub fn position_oob(&self, position: IVec3) -> bool {
+        let min = self.min();
+        let max = self.max();
+
+        position.x < min.x || position.y < min.y || position.z < min.z ||
+        position.x > max.x || position.y > max.y || position.z > max.z
+    }
+
+    pub fn position_collides(&self, position: IVec3) -> bool {
+        self[position] != TileType::empty()
     }
 }
 impl Default for GridMap {
@@ -164,8 +184,8 @@ impl Default for TileType {
 
 #[derive(Default, Clone, Copy)]
 pub struct Transformation {
-    translation: Vec3,
-    rotation: Vec3,
+    pub translation: Vec3,
+    pub rotation: Vec3,
 }
 impl Transformation {
     fn with_translation(translate: Vec3) -> Transformation {

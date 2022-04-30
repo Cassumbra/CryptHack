@@ -33,6 +33,8 @@ fn main() {
         .add_plugin(MapPlugin)
         .add_plugin(AssetPlugin)
 
+        .add_stage_after(CoreStage::Update, "Update Geometry", SystemStage::parallel())
+
         .add_loopless_state(GameState::Loading)
 
         .add_enter_system(GameState::Loading, create_assets)
@@ -57,7 +59,7 @@ fn main() {
         .add_system(check_scene_objects)
 
         .add_system_set_to_stage(
-            CoreStage::PostUpdate,
+            "Update Geometry",
             SystemSet::new()
                 .with_system(spawn_rooms)
                 .with_system(spawn_exits.after(spawn_rooms))

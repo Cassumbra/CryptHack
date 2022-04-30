@@ -91,8 +91,15 @@ pub fn map_branching_generation (
     mut map: ResMut<GridMap>,
     mut room_spawn_attempts: ResMut<RoomSpawnAttempts>,
 
-    room_query: Query<(Entity, &Rect3Room, &Entrances, &Exits)>,
-    entrance_query: Query<(Entity, &Path)>,
+    mut room_query: ParamSet<(
+        Query<(Entity, &Entrances, &Exits), With<Rect3Room>>,
+        Query<(&Rect3Room, &Entrances, &mut Exits)>,
+    )>,
+        
+
+    //mut room_query: Query<(Entity, &Rect3Room, &mut Entrances, &Exits)>,
+    entrance_query: Query<(&HoleEntrance)>,
+    exit_query: Query<(&Path)>,
 
     mut commands: Commands,
 ) {
@@ -100,17 +107,19 @@ pub fn map_branching_generation (
 
     let mut rng = rand::thread_rng();
 
-    let rooms = room_query.iter().collect::<Vec<(Entity, &Rect3Room, &Entrances, &Exits)>>();
+    let room_query_0 = room_query.p0();
+    let rooms = room_query_0.iter().collect::<Vec<(Entity, &Entrances, &Exits)>>();
 
+    // TODO: These should make us leave this system immediately.
     if **room_spawn_attempts >= MAX_ROOMS {
         if rooms.len() < MIN_ROOMS {
             // TODO: restart generation from here
             // Maybe clear what is currently generated and then move back to map_branching_start?
             for position in &*map {
-                clear_tile(&mut commands, &mut map, position);
+                clear_position(&mut commands, &mut map, position);
             }
-            for (entity, _, _, _) in room_query.iter() {
-                commands.entity(entity).despawn();
+            for (entity, _, _) in &rooms {
+                commands.entity(*entity).despawn();
             }
             // TODO: Delete entrances
             // TODO: Delete exits
@@ -124,19 +133,74 @@ pub fn map_branching_generation (
         }
     }
 
-    /*
-    if let Ok((entity, room, entrances, exits)) = rooms.choose_weighted(&mut rng, |(_ent, _room, entrances, exits)| 1/(entrances.len() + exits.len() + 1)) {
+    
+    let room_entity = rooms.choose_weighted(&mut rng, |(_ent, entrances, exits)| 1/(entrances.len() + exits.len() + 1)).unwrap().0;
+
+    if let Ok((room, entrances, mut exits)) = room_query.p1().get_mut(room_entity) {
+        //let mut entrances = Vec::new();
+        //let mut exits = Vec::new();
         let mut exclude = Vec::new();
-        
-        // TODO: Get positions of entrances and exits from here with queries.
-        //exclude.extend(entrances);
-        //exclude.extend(**exits);
+
+        // This feels clunky and messy and a bit out of place. Perhaps it should be handled differently?? Not sure how though. It might be fine tbh.
+        for entrance_entity in entrances.iter() {
+            if let Ok(entrance) = entrance_query.get(*entrance_entity) {
+                exclude.push(**entrance);
+            }
+            else {
+                // This feels messy and silly and is going to cause problems if we add different entrance types.
+                // Guess we'll deal with that later.
+                // Maybe we can just add an else if above this.
+                panic!("Room contains non-entrance entrance!");
+            }
+        }
+
+        for exit_entity in exits.iter() {
+            if let Ok(exit) = exit_query.get(*exit_entity) {
+                exclude.push(exit[0].position);
+            }
+            else {
+                panic!("Room contains non-exit exit!");
+            }
+        }
+
+        let mut path = Path::default();
 
         if let Some((exit_point, exit_orientation)) = random_surface_wall_point(exclude, room.rect, &*map) {
             // TODO: Get to work on path generation.
+            let mut vector = TileOffsets::default()[exit_orientation].translation * 2.0;
+            let mut current_point = exit_point;
+            let mut current_orientation = exit_orientation;
+
+            path.push(IVec3Tile::new(current_point, current_orientation));
+
+            let turns = rng.gen_range(MIN_TURNS..=MAX_TURNS - 1) + 1;
+            'path: for t in 0..=turns {
+                let turn_left = rng.gen_bool(0.5);
+                let distance = rng.gen_range(MIN_DIST..=MAX_DIST);
+                for _ in 0..distance {
+                    current_point += IVec3::new(vector.x as i32, vector.y as i32, vector.z as i32);
+
+                    if map.position_oob(current_point) {
+                        break 'path;
+                    }
+                    else {
+                        path.push(IVec3Tile::new(current_point, current_orientation));
+                    }
+                    
+                }
+
+                if t != turns {
+                    current_orientation = current_orientation.rotate90(turn_left);
+                    vector = TileOffsets::default()[current_orientation].translation * 2.0;
+                }
+            }
+
+            let exit = commands.spawn().insert(path.clone()).id();
+            exits.push(exit);
+
+            println!("{:?}", path);
         }
     }
-     */
 }
 
 
@@ -154,7 +218,7 @@ pub fn spawn_rooms (
         let max = room.rect.max();
 
         for position in room {
-            clear_tile(&mut commands, &mut map, position);
+            clear_position(&mut commands, &mut map, position);
     
             
             if position.y == max.y {
@@ -181,9 +245,27 @@ pub fn spawn_rooms (
 }
 
 pub fn spawn_exits (
+    mut map: ResMut<GridMap>,
 
+    path_query: Query<(Entity, &Path), (Added<Path>)>,
+
+    mut commands: Commands,
 ) {
+    for (entity, path) in path_query.iter() {
+        println!("spawning exit");
 
+        for (i, p) in path.iter().enumerate() {
+            if i == 0 {
+                clear_tile(&mut commands, &mut map, p.orientation, p.position);
+            }
+            else {
+                clear_position(&mut commands, &mut map, p.position);
+            }
+            
+    
+            
+        }
+    }
 }
 
 pub fn spawn_entrances (
@@ -193,12 +275,6 @@ pub fn spawn_entrances (
 }
 
 // Helper Functions
-pub fn spawn_room (
-    mut map: ResMut<GridMap>,
-    mut commands: Commands,
-) {
-
-}
 
 // Data
 pub struct WithinBoxIterator {

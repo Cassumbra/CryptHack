@@ -88,13 +88,21 @@ impl IntoIterator for &Rect3Room {
 }
 
 #[derive(Component, Default, Deref, DerefMut, Clone)]
+pub struct HoleEntrance (pub IVec3);
+
+#[derive(Component, Debug, Default, Deref, DerefMut, Clone)]
 pub struct Path (pub Vec<IVec3Tile>);
 
 // Data
-#[derive(Default, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct IVec3Tile {
-    pub orientation: TileType,
     pub position: IVec3,
+    pub orientation: TileType,
+}
+impl IVec3Tile {
+    pub fn new(position: IVec3, orientation: TileType) -> IVec3Tile {
+        IVec3Tile { position, orientation}
+    }
 }
 
 #[derive(Default, Debug, Clone, PartialEq)]
