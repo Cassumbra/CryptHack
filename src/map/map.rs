@@ -29,8 +29,8 @@ const MIN_HEIGHT: i32 = 1;
 const MAX_HEIGHT: i32 = 3;
 
 // Branch/Edge generation.
-const MIN_TURNS: i32 = 0;
-const MAX_TURNS: i32 = 4;
+const MIN_TURNS: i32 = 9;
+const MAX_TURNS: i32 = 10;
 const MIN_DIST: i32 = 5;
 const MAX_DIST: i32 = 10;
 
@@ -186,11 +186,24 @@ pub fn map_branching_generation (
                 for _ in 0..distance {
                     current_point += IVec3::new(vector.x as i32, vector.y as i32, vector.z as i32);
 
+                    let positions = exit.path.iter().map(|path| path.position).collect::<Vec<IVec3>>();
+
+                    if positions.contains(&current_point) {
+                        exit.path.push(IVec3Tile::new(current_point, current_orientation));
+                        break 'path;
+                    }
+
                     if map.position_oob(current_point) {
                         break 'path;
                     }
                     else {
                         exit.path.push(IVec3Tile::new(current_point, current_orientation));
+                    }
+
+                    
+
+                    if map.position_collides(current_point){
+                        break 'path;
                     }
                     
                 }
@@ -201,10 +214,8 @@ pub fn map_branching_generation (
                 }
             }
 
-            let exit_entity = commands.spawn().insert(exit.clone()).id();
+            let exit_entity = commands.spawn().insert(exit).id();
             exits.push(exit_entity);
-
-            println!("{:?}", exit.path);
         }
     }
 }
