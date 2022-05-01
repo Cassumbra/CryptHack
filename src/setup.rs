@@ -39,7 +39,7 @@ pub fn spawn_actors (
         .insert(Player)
         .insert(Transform {
             translation: spawn_pos,
-            ..Default::default()
+            ..default()
         })
         .insert(GlobalTransform::identity())
         .insert(RigidBody::Dynamic)
@@ -58,13 +58,19 @@ pub fn spawn_actors (
             c.spawn_bundle(PerspectiveCameraBundle::new_3d())
                 .insert( Transform {
                     translation: Vec3::new(0.0, PLAYER_HEIGHT - (PLAYER_HEIGHT / 4.0), 0.0),
-                    ..Default::default()
+                    ..default()
                 });
         })
         // light
         .with_children(|c| {
             c.spawn_bundle(PointLightBundle {
-                ..Default::default()
+                point_light: PointLight {
+                    intensity: 400.0,
+                    //range: 80.0,
+                    //radius: 80.0,
+                    ..default()
+                },
+                ..default()
             });
         });
 

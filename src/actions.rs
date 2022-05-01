@@ -2,7 +2,7 @@ use bevy::{prelude::*, input::mouse::MouseMotion};
 use heron::prelude::*;
 use leafwing_input_manager::{Actionlike, prelude::ActionState};
 
-const SPEED: f32 = 12.;
+const SPEED: f32 = 8.;
 const ACCELERATION: f32 = 2.;
 
 // Systems
@@ -19,7 +19,7 @@ pub fn process_actions(
     let window = windows.get_primary_mut().unwrap();
 
     for (cameras, action_state, mut velocity, mut transform) in query.iter_mut() {
-        if window.cursor_locked() {
+        if window.cursor_locked() && window.is_focused() {
             for ev in motion_evr.iter() {
                 transform.rotate(Quat::from_rotation_y(-ev.delta.x * sensitivity_mult));
                 for camera in cameras.iter() {

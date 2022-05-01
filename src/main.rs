@@ -1,3 +1,7 @@
+
+
+#![windows_subsystem = "windows"]
+
 use bevy::prelude::*;
 use iyes_loopless::prelude::*;
 use heron::prelude::*;
@@ -23,6 +27,12 @@ fn main() {
     let mut app = App::new();
 
     app
+        .insert_resource(WindowDescriptor{
+            title: "CryptHack".to_string(),
+            resizable: true,
+            ..Default::default()}
+        )
+
         .insert_resource(Msaa { samples: 4 })
         .insert_resource(Gravity::from(Vec3::new(0., -9.81, 0.)))        
 
@@ -52,7 +62,7 @@ fn main() {
             ConditionSet::new()
                 .run_in_state(GameState::Playing)
                 .with_system(process_actions)
-                .with_system(cursor_grab_system)
+                .with_system(meta_input)
                 .into()
         )
 

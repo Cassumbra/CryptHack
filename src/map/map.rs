@@ -58,9 +58,9 @@ pub fn map_branching_start (
 
     let mut rng = rand::thread_rng();
     
-    let w = rng.gen_range(MIN_SIZE..MAX_SIZE);
-    let h = rng.gen_range(MIN_HEIGHT..MAX_HEIGHT);
-    let l = rng.gen_range(MIN_SIZE..MAX_SIZE);
+    let w = rng.gen_range(MIN_SIZE..=MAX_SIZE);
+    let h = rng.gen_range(MIN_HEIGHT..=MAX_HEIGHT);
+    let l = rng.gen_range(MIN_SIZE..=MAX_SIZE);
     let x = rng.gen_range(0..(map.width() - w));
     let y = rng.gen_range(0..(map.height() - h));
     let z = rng.gen_range(0..(map.length() - l));
