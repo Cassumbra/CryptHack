@@ -94,12 +94,14 @@ pub fn map_branching_generation (
 
     mut room_query: ParamSet<(
         Query<(Entity, &Entrances, &Exits), With<Rect3Room>>,
-        Query<(&Rect3Room, &Entrances, &mut Exits)>,
+        Query<(&Rect3Room, &mut Entrances, &mut Exits)>,
     )>,
         
     //mut room_query: Query<(Entity, &Rect3Room, &mut Entrances, &Exits)>,
     entrance_query: Query<(Entity, &HoleEntrance)>,
     exit_query: Query<(Entity, &PathExit)>,
+
+    tile_query: Query<(&Parent), With<IsTile>>,
 
     mut commands: Commands,
 ) {
@@ -142,16 +144,11 @@ pub fn map_branching_generation (
         }
     }
 
-    /*
-    println!("WEIGHTS");
-    for (ent, entrances, exits) in &rooms {
-        println!("{:?} entrances {:?}", ent, entrances.len());
-        println!("{:?} exits {:?}", ent, exits.len());
-        println!("{:?} weight is: {:?}", ent, 1.0 / (entrances.len() + exits.len() + 1) as f32)
-    }
-     */
 
     let room_entity = rooms.choose_weighted(&mut rng, |(_ent, entrances, exits)| 1.0 / (entrances.len() + exits.len() + 1) as f32).unwrap().0;
+
+    let mut collided_object_opt = None;
+    let mut spawned_entrance_opt = None;
 
     if let Ok((room, entrances, mut exits)) = room_query.p1().get_mut(room_entity) {
         //let mut entrances = Vec::new();
@@ -192,7 +189,6 @@ pub fn map_branching_generation (
         let mut can_spawn_room = true;
 
         if let Some((exit_point, exit_orientation)) = random_surface_wall_point(exclude, room.rect, &*map) {
-            // TODO: Get to work on path generation.
             let mut vector = TileOffsets::default()[exit_orientation].translation * 2.0;
             let mut current_point = exit_point;
             let mut current_orientation = exit_orientation;
@@ -213,6 +209,7 @@ pub fn map_branching_generation (
                     if path_positions.contains(&current_point) {
                         can_spawn_room = false;
                         exit.path.push(IVec3Tile::new(current_point, current_orientation));
+                        commands.spawn().insert(HoleEntrance(IVec3Tile::new(current_point, current_orientation.rotate90(true).rotate90(true))));
                         break 'path;
                     }
 
@@ -227,7 +224,12 @@ pub fn map_branching_generation (
                     }
 
                     // Check if path intersects with anything else
-                    if map.position_collides(current_point){
+                    if let Some(collision) = map[current_point][current_orientation] {
+                        if let Ok(parent) = tile_query.get(collision) {
+                            collided_object_opt = Some(parent);
+                            spawned_entrance_opt = Some(commands.spawn().insert(HoleEntrance(IVec3Tile::new(current_point, current_orientation.rotate90(true).rotate90(true)))).id());
+                        }
+
                         can_spawn_room = false;
                         break 'path;
                     }
@@ -279,7 +281,7 @@ pub fn map_branching_generation (
                         ..default()
                     };
                     
-                    let entrance = IVec3Tile::new(exit.path.last().unwrap().position, orientation);
+                    let entrance = IVec3Tile::new(exit.path.last().unwrap().position, orientation.rotate90(true).rotate90(true));
 
                     let entrance_entity = commands.spawn()
                                                   .insert(HoleEntrance(entrance))
@@ -301,18 +303,20 @@ pub fn map_branching_generation (
                 let exit_entity = commands.spawn().insert(exit).id();
                 exits.push(exit_entity);
             }
+        }
+    }
 
-
-
-
+    if let Some(collided_object) = collided_object_opt {
+        if let Ok((_room, mut en, _ex)) = room_query.p1().get_mut(**collided_object) {
+            if let Some(spawned_entrance) = spawned_entrance_opt {
+                en.push(spawned_entrance);
+            }
         }
     }
 
     **room_spawn_attempts += 1;
 }
 
-
-// TODO: Entities should be children of their room.
 pub fn spawn_rooms (
     mut map: ResMut<GridMap>,
 
@@ -325,34 +329,38 @@ pub fn spawn_rooms (
         let min = room.rect.min();
         let max = room.rect.max();
 
+        let mut tiles = Vec::new();
+
         for position in room {
             clear_position(&mut commands, &mut map, position);
-    
-            
+
             if position.y == max.y {
-                spawn_tile(&mut commands, &mut map, room.ceiling.clone(), TileType::Ceiling, position);
+                tiles.push(spawn_tile(&mut commands, &mut map, room.ceiling.clone(), TileType::Ceiling, position));
             }
             if position.z == max.z {
-                spawn_tile(&mut commands, &mut map, room.walls.clone(), TileType::North, position);
+                tiles.push(spawn_tile(&mut commands, &mut map, room.walls.clone(), TileType::North, position));
             }
             if position.x == max.x {
-                spawn_tile(&mut commands, &mut map, room.walls.clone(), TileType::East, position);
+                tiles.push(spawn_tile(&mut commands, &mut map, room.walls.clone(), TileType::East, position));
             }
 
             if position.y == min.y {
-                spawn_tile(&mut commands, &mut map, room.floor.clone(), TileType::Floor, position);
+                tiles.push(spawn_tile(&mut commands, &mut map, room.floor.clone(), TileType::Floor, position));
             }
             if position.z == min.z {
-                spawn_tile(&mut commands, &mut map, room.walls.clone(), TileType::South, position);
+                tiles.push(spawn_tile(&mut commands, &mut map, room.walls.clone(), TileType::South, position));
             }
             if position.x == min.x {
-                spawn_tile(&mut commands, &mut map, room.walls.clone(), TileType::West, position);
+                tiles.push(spawn_tile(&mut commands, &mut map, room.walls.clone(), TileType::West, position));
             }
+        }
+
+        for tile in tiles {
+            //commands.entity(entity).add_child(tile);
         }
     }
 }
 
-// TODO: Entities should be children of their path.
 pub fn spawn_exits (
     mut map: ResMut<GridMap>,
 
@@ -362,6 +370,8 @@ pub fn spawn_exits (
 ) {
     for (entity, exit) in path_query.iter() {
         println!("spawning exit");
+
+        let mut tiles = Vec::new();
 
         for (i, p) in exit.path.iter().enumerate() {
             // Start
@@ -377,27 +387,33 @@ pub fn spawn_exits (
                 clear_position(&mut commands, &mut map, p.position);
 
                 if exit.path[i+1].orientation == p.orientation {
-                    spawn_tile(&mut commands, &mut map, exit.walls.clone(), p.orientation.rotate90(true), p.position);
-                    spawn_tile(&mut commands, &mut map, exit.walls.clone(), p.orientation.rotate90(false), p.position);
+                    tiles.push(spawn_tile(&mut commands, &mut map, exit.walls.clone(), p.orientation.rotate90(true), p.position));
+                    tiles.push(spawn_tile(&mut commands, &mut map, exit.walls.clone(), p.orientation.rotate90(false), p.position));
                 }
                 else if exit.path[i+1].orientation == p.orientation.rotate90(true) {
-                    spawn_tile(&mut commands, &mut map, exit.walls.clone(), p.orientation, p.position);
-                    spawn_tile(&mut commands, &mut map, exit.walls.clone(), p.orientation.rotate90(false), p.position);
+                    tiles.push(spawn_tile(&mut commands, &mut map, exit.walls.clone(), p.orientation, p.position));
+                    tiles.push(spawn_tile(&mut commands, &mut map, exit.walls.clone(), p.orientation.rotate90(false), p.position));
                 }
                 else if exit.path[i+1].orientation == p.orientation.rotate90(false) {
-                    spawn_tile(&mut commands, &mut map, exit.walls.clone(), p.orientation, p.position);
-                    spawn_tile(&mut commands, &mut map, exit.walls.clone(), p.orientation.rotate90(true), p.position);
+                    tiles.push(spawn_tile(&mut commands, &mut map, exit.walls.clone(), p.orientation, p.position));
+                    tiles.push(spawn_tile(&mut commands, &mut map, exit.walls.clone(), p.orientation.rotate90(true), p.position));
                 }
                 else {
                     panic!("Malformed path!");
                 }
 
-                spawn_tile(&mut commands, &mut map, exit.walls.clone(), TileType::Ceiling, p.position);
-                spawn_tile(&mut commands, &mut map, exit.walls.clone(), TileType::Floor, p.position);
+                tiles.push(spawn_tile(&mut commands, &mut map, exit.walls.clone(), TileType::Ceiling, p.position));
+                tiles.push(spawn_tile(&mut commands, &mut map, exit.walls.clone(), TileType::Floor, p.position));
 
 
             }
         }
+
+        println!("adding tiles as children");
+        for tile in tiles {
+            //commands.entity(entity).add_child(tile);
+        }
+        println!("done")
     }
 }
 

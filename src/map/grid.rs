@@ -29,7 +29,7 @@ pub fn clear_tile ( commands: &mut Commands, map: &mut GridMap, tile_type: TileT
     map[position][tile_type] = None;
 }
 
-pub fn spawn_tile ( commands: &mut Commands, map: &mut GridMap, tile: Tile, tile_type: TileType, position: IVec3) {
+pub fn spawn_tile ( commands: &mut Commands, map: &mut GridMap, tile: Tile, tile_type: TileType, position: IVec3) -> Entity {
     let transformation = TileOffsets::default()[tile_type];
     let mut transform = Transform::default();
 
@@ -59,9 +59,12 @@ pub fn spawn_tile ( commands: &mut Commands, map: &mut GridMap, tile: Tile, tile
         })
         .insert(RigidBody::Static)
         .insert(CollisionLayers::default())
+        .insert(IsTile)
         .id();
 
     map[position][tile_type] = Some(spawned_tile);
+
+    spawned_tile
 }
 
 
@@ -139,6 +142,10 @@ impl IntoIterator for &GridMap {
         WithinBoxIterator::new(self.min(), self.max())
     }
 }
+
+// Components
+#[derive(Component, Default, Clone)]
+pub struct IsTile;
 
 // Data
 #[derive(Enum, Clone, Copy, Debug, PartialEq)]
