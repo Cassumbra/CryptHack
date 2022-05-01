@@ -66,9 +66,9 @@ pub fn map_branching_start (
     let z = rng.gen_range(0..(map.length() - l));
 
     let room = Rect3Room {
-        ceiling: tiles.grass.clone(),
-        walls: tiles.grass.clone(),
-        floor: tiles.grass.clone(),
+        ceiling: tiles.concrete.clone(),
+        walls: tiles.gray_medium_brick.clone(),
+        floor: tiles.concrete.clone(),
         rect: Rect3::new(IVec3::new(x, y, z), w, h, l),
 
         ..default()
@@ -296,8 +296,6 @@ pub fn map_branching_generation (
                 }
             }
             else {
-                println!("no room...: {:?}", exit.path.clone());
-
                 let exit_entity = commands.spawn().insert(exit).id();
                 exits.push(exit_entity);
             }
@@ -392,8 +390,8 @@ pub fn spawn_exits (
                     panic!("Malformed path!");
                 }
 
-                spawn_tile(&mut commands, &mut map, exit.walls.clone(), TileType::Ceiling, p.position);
-                spawn_tile(&mut commands, &mut map, exit.walls.clone(), TileType::Floor, p.position);
+                spawn_tile(&mut commands, &mut map, exit.ceiling.clone(), TileType::Ceiling, p.position);
+                spawn_tile(&mut commands, &mut map, exit.floor.clone(), TileType::Floor, p.position);
 
 
             }

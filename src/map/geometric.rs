@@ -42,7 +42,16 @@ pub fn random_surface_wall_point(exclude: Vec<IVec3>, rect: Rect3, map: &GridMap
             possible_walls.push(TileType::West);
         }
 
-        Some((*point, *possible_walls.choose(&mut rng).unwrap()))
+        if let Some(wall) = possible_walls.choose(&mut rng) {
+            Some((*point, *wall))
+        }
+        else {
+            println!("point: {:?}", point);
+            println!("possible walls: {:?}", possible_walls);
+            None
+        }
+
+        
     }
     else {
         None
@@ -51,6 +60,9 @@ pub fn random_surface_wall_point(exclude: Vec<IVec3>, rect: Rect3, map: &GridMap
 }
 
 // Components
+// TODO: Maybe this should just be a vec of IVec3s... might be easier.
+//       Might still be difficult to add entrances to rooms though.
+//       Maybe we oughtta do that with an event or something. "Intersection Event" or somethin eh?
 #[derive(Component, Default, Deref, DerefMut, Clone)]
 pub struct Entrances (pub Vec<Entity>);
 
