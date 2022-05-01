@@ -88,7 +88,7 @@ impl IntoIterator for &Rect3Room {
 }
 
 #[derive(Component, Default, Deref, DerefMut, Clone)]
-pub struct HoleEntrance (pub IVec3);
+pub struct HoleEntrance (pub IVec3Tile);
 
 #[derive(Component, Debug, Default, Clone)]
 pub struct PathExit {

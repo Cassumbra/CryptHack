@@ -16,8 +16,8 @@ use super::assets::TileAssets;
 
 // Rooms are equivalent to Nodes. Branches are equivalent to Edges.
 
-const MIN_ROOMS: usize = 1;
-const MAX_ROOMS: i32 = 1;
+const MIN_ROOMS: usize = 3;
+const MAX_ROOMS: i32 = 30;
 
 const MIN_BRANCHES_FROM_ROOM: i32 = 1;
 const MAX_BRANCHES_FROM_ROOM: i32 = 3;
@@ -29,9 +29,9 @@ const MIN_HEIGHT: i32 = 1;
 const MAX_HEIGHT: i32 = 3;
 
 // Branch/Edge generation.
-const MIN_TURNS: i32 = 9;
-const MAX_TURNS: i32 = 10;
-const MIN_DIST: i32 = 5;
+const MIN_TURNS: i32 = 0;
+const MAX_TURNS: i32 = 4;
+const MIN_DIST: i32 = 3;
 const MAX_DIST: i32 = 10;
 
 // Plugin
@@ -97,10 +97,9 @@ pub fn map_branching_generation (
         Query<(&Rect3Room, &Entrances, &mut Exits)>,
     )>,
         
-
     //mut room_query: Query<(Entity, &Rect3Room, &mut Entrances, &Exits)>,
-    entrance_query: Query<(&HoleEntrance)>,
-    exit_query: Query<(&PathExit)>,
+    entrance_query: Query<(Entity, &HoleEntrance)>,
+    exit_query: Query<(Entity, &PathExit)>,
 
     mut commands: Commands,
 ) {
@@ -113,29 +112,46 @@ pub fn map_branching_generation (
 
     // TODO: These should make us leave this system immediately.
     if **room_spawn_attempts >= MAX_ROOMS {
+        println!("{:?}", rooms.len());
         if rooms.len() < MIN_ROOMS {
             // TODO: restart generation from here
             // Maybe clear what is currently generated and then move back to map_branching_start?
+            println!("Restarting generation.");
+
             for position in &*map {
                 clear_position(&mut commands, &mut map, position);
             }
             for (entity, _, _) in &rooms {
                 commands.entity(*entity).despawn();
             }
-            // TODO: Delete entrances
-            // TODO: Delete exits
+            for (entity, _) in entrance_query.iter() {
+                commands.entity(entity).despawn();
+            }
+            for (entity, _) in exit_query.iter() {
+                commands.entity(entity).despawn();
+            }
 
             commands.insert_resource(NextState(GameState::StartMapGen));
+            return;
         }
         else {
             // Finish generation
+            println!("Generation finished");
 
             commands.insert_resource(NextState(GameState::SpawnActors));
         }
     }
 
-    
-    let room_entity = rooms.choose_weighted(&mut rng, |(_ent, entrances, exits)| 1/(entrances.len() + exits.len() + 1)).unwrap().0;
+    /*
+    println!("WEIGHTS");
+    for (ent, entrances, exits) in &rooms {
+        println!("{:?} entrances {:?}", ent, entrances.len());
+        println!("{:?} exits {:?}", ent, exits.len());
+        println!("{:?} weight is: {:?}", ent, 1.0 / (entrances.len() + exits.len() + 1) as f32)
+    }
+     */
+
+    let room_entity = rooms.choose_weighted(&mut rng, |(_ent, entrances, exits)| 1.0 / (entrances.len() + exits.len() + 1) as f32).unwrap().0;
 
     if let Ok((room, entrances, mut exits)) = room_query.p1().get_mut(room_entity) {
         //let mut entrances = Vec::new();
@@ -144,8 +160,8 @@ pub fn map_branching_generation (
 
         // This feels clunky and messy and a bit out of place. Perhaps it should be handled differently?? Not sure how though. It might be fine tbh.
         for entrance_entity in entrances.iter() {
-            if let Ok(entrance) = entrance_query.get(*entrance_entity) {
-                exclude.push(**entrance);
+            if let Ok((entrance_entity, entrance)) = entrance_query.get(*entrance_entity) {
+                exclude.push(entrance.position);
             }
             else {
                 // This feels messy and silly and is going to cause problems if we add different entrance types.
@@ -156,7 +172,7 @@ pub fn map_branching_generation (
         }
 
         for exit_entity in exits.iter() {
-            if let Ok(exit) = exit_query.get(*exit_entity) {
+            if let Ok((exit_entity, exit)) = exit_query.get(*exit_entity) {
                 exclude.push(exit.path[0].position);
             }
             else {
@@ -170,6 +186,10 @@ pub fn map_branching_generation (
             floor: room.floor.clone(),
             ..default()
         };
+
+        let mut path_positions = Vec::new();
+
+        let mut can_spawn_room = true;
 
         if let Some((exit_point, exit_orientation)) = random_surface_wall_point(exclude, room.rect, &*map) {
             // TODO: Get to work on path generation.
@@ -186,38 +206,109 @@ pub fn map_branching_generation (
                 for _ in 0..distance {
                     current_point += IVec3::new(vector.x as i32, vector.y as i32, vector.z as i32);
 
-                    let positions = exit.path.iter().map(|path| path.position).collect::<Vec<IVec3>>();
 
-                    if positions.contains(&current_point) {
+                    // Check if path intersects itself
+                    path_positions = exit.path.iter().map(|path| path.position).collect::<Vec<IVec3>>();
+
+                    if path_positions.contains(&current_point) {
+                        can_spawn_room = false;
                         exit.path.push(IVec3Tile::new(current_point, current_orientation));
                         break 'path;
                     }
 
+                    // Check if path is out of bounds
                     if map.position_oob(current_point) {
+                        can_spawn_room = false;
                         break 'path;
                     }
+                    // Push the current point and location if we aren't out of bounds
                     else {
                         exit.path.push(IVec3Tile::new(current_point, current_orientation));
                     }
 
-                    
-
+                    // Check if path intersects with anything else
                     if map.position_collides(current_point){
+                        can_spawn_room = false;
                         break 'path;
                     }
-                    
                 }
 
+                // Take a turn if applicable
                 if t != turns {
                     current_orientation = current_orientation.rotate90(turn_left);
                     vector = TileOffsets::default()[current_orientation].translation * 2.0;
                 }
             }
 
-            let exit_entity = commands.spawn().insert(exit).id();
-            exits.push(exit_entity);
+            if can_spawn_room {
+                let mut pos1 = exit.path.last().unwrap().position;
+                let orientation = exit.path.last().unwrap().orientation;
+
+                let w = rng.gen_range(MIN_SIZE..MAX_SIZE);
+                let h = rng.gen_range(MIN_HEIGHT..MAX_HEIGHT);
+                let l = rng.gen_range(MIN_SIZE..MAX_SIZE);
+
+                if orientation == TileType::East || orientation == TileType::West {
+                    pos1.z -= l/2;
+                }
+                else if orientation == TileType::North || orientation == TileType::South {
+                    pos1.x -= w/2;
+                }
+
+                let rect = Rect3::new(pos1, w, h, l);
+
+                let mut is_ok = true;
+
+                // Don't include last position in path in checking.
+                path_positions.pop();
+
+                for position in rect {
+                    if map.position_oob(position) || map.position_collides(position) || path_positions.contains(&position) {
+                        is_ok = false;
+                        break;
+                    }
+                }
+
+                if is_ok {
+                    let room = Rect3Room {
+                        ceiling: exit.ceiling.clone(),
+                        walls: exit.walls.clone(),
+                        floor: exit.floor.clone(),
+                        rect,
+                
+                        ..default()
+                    };
+                    
+                    let entrance = IVec3Tile::new(exit.path.last().unwrap().position, orientation);
+
+                    let entrance_entity = commands.spawn()
+                                                  .insert(HoleEntrance(entrance))
+                                                  .id();
+
+                    commands
+                        .spawn()
+                        .insert(room)
+                        .insert(Entrances(vec![entrance_entity]))
+                        .insert(Exits(Vec::new()));
+
+                    let exit_entity = commands.spawn().insert(exit).id();
+                    exits.push(exit_entity);
+                }
+            }
+            else {
+                println!("no room...: {:?}", exit.path.clone());
+
+                let exit_entity = commands.spawn().insert(exit).id();
+                exits.push(exit_entity);
+            }
+
+
+
+
         }
     }
+
+    **room_spawn_attempts += 1;
 }
 
 
