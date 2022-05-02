@@ -65,7 +65,7 @@ pub fn spawn_actors (
         .with_children(|c| {
             c.spawn_bundle(PointLightBundle {
                 point_light: PointLight {
-                    intensity: 400.0,
+                    intensity: 200.0,
                     //range: 80.0,
                     //radius: 80.0,
                     ..default()
