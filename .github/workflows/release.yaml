@@ -7,7 +7,7 @@ on:
 
 env:
   # update with the name of the main binary
-  binary: CryptHack
+  binary: crypt_hack
 
 
 jobs:
