@@ -1,6 +1,6 @@
 
 
-#![windows_subsystem = "windows"]
+//#![windows_subsystem = "windows"]
 
 use bevy::prelude::*;
 use iyes_loopless::prelude::*;
@@ -47,7 +47,7 @@ fn main() {
 
         .add_loopless_state(GameState::Loading)
 
-        .add_enter_system(GameState::Loading, create_assets)
+        .add_system(create_assets.run_in_state(GameState::Loading))
 
         //.add_enter_system(GameState::StartMapGen, map_branching_start)
         .add_system(map_branching_start.run_in_state(GameState::StartMapGen))
