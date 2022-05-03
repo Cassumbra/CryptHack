@@ -29,11 +29,13 @@ pub fn clear_tile ( commands: &mut Commands, map: &mut GridMap, tile_type: TileT
     map[position][tile_type] = None;
 }
 
-pub fn spawn_tile ( commands: &mut Commands, map: &mut GridMap, tile: Tile, tile_type: TileType, position: IVec3) {
+pub fn spawn_tile ( commands: &mut Commands, map: &mut GridMap, scale: &MapScale, tile: Tile, tile_type: TileType, position: IVec3) {
     let transformation = TileOffsets::default()[tile_type];
     let mut transform = Transform::default();
+    let mut collision_size = Vec3::new(0.5, 0.1, 0.5);
 
     transform.translation = Vec3::new(position.x as f32, position.y as f32, position.z as f32) + transformation.translation;
+    transform.translation *= **scale;
 
     if transformation.rotation.x != 0.0 {
         transform.rotate(Quat::from_rotation_x(transformation.rotation.x))
@@ -45,6 +47,10 @@ pub fn spawn_tile ( commands: &mut Commands, map: &mut GridMap, tile: Tile, tile
         transform.rotate(Quat::from_rotation_z(transformation.rotation.z))
     }
 
+    transform.scale = **scale;
+
+    collision_size *= **scale;
+
     let spawned_tile = commands
         .spawn_bundle(PbrBundle {
             mesh: tile.mesh.clone(),
@@ -54,7 +60,7 @@ pub fn spawn_tile ( commands: &mut Commands, map: &mut GridMap, tile: Tile, tile
         .insert(transform)
         .insert(GlobalTransform::default())
         .insert(CollisionShape::Cuboid {
-            half_extends: Vec3::new(0.5, 0.0, 0.5),
+            half_extends: collision_size,
             border_radius: None,
         })
         .insert(RigidBody::Static)
@@ -137,6 +143,14 @@ impl IntoIterator for &GridMap {
 
     fn into_iter(self) -> Self::IntoIter {
         WithinBoxIterator::new(self.min(), self.max())
+    }
+}
+
+#[derive(Clone, Deref, DerefMut)]
+pub struct MapScale (Vec3);
+impl Default for MapScale {
+    fn default() -> Self {
+        MapScale(Vec3::new(2.0, 2.0, 2.0))
     }
 }
 

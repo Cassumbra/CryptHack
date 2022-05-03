@@ -3,7 +3,7 @@ use heron::{prelude::*, PendingConvexCollision};
 use iyes_loopless::state::NextState;
 use leafwing_input_manager::prelude::*;
 
-use crate::{actions::Action, player::Player, map::geometric::Rect3Room, GameState};
+use crate::{actions::Action, player::Player, map::{geometric::Rect3Room, MapScale}, GameState};
 
 //use super::{GameState, TextureAssets};
 
@@ -12,6 +12,8 @@ const PLAYER_HEIGHT: f32 = 0.4;
 // Systems
 pub fn spawn_actors (
     mut commands: Commands,
+
+    map_scale: Res<MapScale>,
 
     room_query: Query<&Rect3Room>,
 ) {
@@ -23,6 +25,7 @@ pub fn spawn_actors (
         spawn_pos = room.rect.center();
     }
     
+    spawn_pos *= **map_scale;
 
     // Player
     commands

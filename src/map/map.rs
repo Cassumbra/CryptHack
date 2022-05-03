@@ -41,7 +41,8 @@ impl Plugin for MapPlugin {
     fn build(&self, app: &mut App) {
         app
             .init_resource::<RoomSpawnAttempts>()
-            .init_resource::<GridMap>();
+            .init_resource::<GridMap>()
+            .init_resource::<MapScale>();
     }
 }
 
@@ -313,6 +314,7 @@ pub fn map_branching_generation (
 // TODO: Entities should be children of their room.
 pub fn spawn_rooms (
     mut map: ResMut<GridMap>,
+    map_scale: Res<MapScale>,
 
     room_query: Query<(Entity, &Rect3Room), (Added<Rect3Room>)>,
 
@@ -328,23 +330,23 @@ pub fn spawn_rooms (
     
             
             if position.y == max.y {
-                spawn_tile(&mut commands, &mut map, room.ceiling.clone(), TileType::Ceiling, position);
+                spawn_tile(&mut commands, &mut map, &map_scale, room.ceiling.clone(), TileType::Ceiling, position);
             }
             if position.z == max.z {
-                spawn_tile(&mut commands, &mut map, room.walls.clone(), TileType::North, position);
+                spawn_tile(&mut commands, &mut map, &map_scale, room.walls.clone(), TileType::North, position);
             }
             if position.x == max.x {
-                spawn_tile(&mut commands, &mut map, room.walls.clone(), TileType::East, position);
+                spawn_tile(&mut commands, &mut map, &map_scale, room.walls.clone(), TileType::East, position);
             }
 
             if position.y == min.y {
-                spawn_tile(&mut commands, &mut map, room.floor.clone(), TileType::Floor, position);
+                spawn_tile(&mut commands, &mut map, &map_scale, room.floor.clone(), TileType::Floor, position);
             }
             if position.z == min.z {
-                spawn_tile(&mut commands, &mut map, room.walls.clone(), TileType::South, position);
+                spawn_tile(&mut commands, &mut map, &map_scale, room.walls.clone(), TileType::South, position);
             }
             if position.x == min.x {
-                spawn_tile(&mut commands, &mut map, room.walls.clone(), TileType::West, position);
+                spawn_tile(&mut commands, &mut map, &map_scale, room.walls.clone(), TileType::West, position);
             }
         }
     }
@@ -353,6 +355,7 @@ pub fn spawn_rooms (
 // TODO: Entities should be children of their path.
 pub fn spawn_exits (
     mut map: ResMut<GridMap>,
+    map_scale: Res<MapScale>,
 
     path_query: Query<(Entity, &PathExit), (Added<PathExit>)>,
 
@@ -375,23 +378,23 @@ pub fn spawn_exits (
                 clear_position(&mut commands, &mut map, p.position);
 
                 if exit.path[i+1].orientation == p.orientation {
-                    spawn_tile(&mut commands, &mut map, exit.walls.clone(), p.orientation.rotate90(true), p.position);
-                    spawn_tile(&mut commands, &mut map, exit.walls.clone(), p.orientation.rotate90(false), p.position);
+                    spawn_tile(&mut commands, &mut map, &map_scale, exit.walls.clone(), p.orientation.rotate90(true), p.position);
+                    spawn_tile(&mut commands, &mut map, &map_scale, exit.walls.clone(), p.orientation.rotate90(false), p.position);
                 }
                 else if exit.path[i+1].orientation == p.orientation.rotate90(true) {
-                    spawn_tile(&mut commands, &mut map, exit.walls.clone(), p.orientation, p.position);
-                    spawn_tile(&mut commands, &mut map, exit.walls.clone(), p.orientation.rotate90(false), p.position);
+                    spawn_tile(&mut commands, &mut map, &map_scale, exit.walls.clone(), p.orientation, p.position);
+                    spawn_tile(&mut commands, &mut map, &map_scale, exit.walls.clone(), p.orientation.rotate90(false), p.position);
                 }
                 else if exit.path[i+1].orientation == p.orientation.rotate90(false) {
-                    spawn_tile(&mut commands, &mut map, exit.walls.clone(), p.orientation, p.position);
-                    spawn_tile(&mut commands, &mut map, exit.walls.clone(), p.orientation.rotate90(true), p.position);
+                    spawn_tile(&mut commands, &mut map, &map_scale, exit.walls.clone(), p.orientation, p.position);
+                    spawn_tile(&mut commands, &mut map, &map_scale, exit.walls.clone(), p.orientation.rotate90(true), p.position);
                 }
                 else {
                     panic!("Malformed path!");
                 }
 
-                spawn_tile(&mut commands, &mut map, exit.ceiling.clone(), TileType::Ceiling, p.position);
-                spawn_tile(&mut commands, &mut map, exit.floor.clone(), TileType::Floor, p.position);
+                spawn_tile(&mut commands, &mut map, &map_scale, exit.ceiling.clone(), TileType::Ceiling, p.position);
+                spawn_tile(&mut commands, &mut map, &map_scale, exit.floor.clone(), TileType::Floor, p.position);
 
 
             }
